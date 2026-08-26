@@ -144,3 +144,52 @@ func (f *fakeDest) Delete(_ context.Context, n string) error {
 	return nil
 }
 func (f *fakeDest) Describe() string { return "fake" }
+
+// A DESTINATION MAY NOT BE OURS ALONE. Customers point backups at a bucket they
+// already use, and all three products can be configured to the same place. A
+// retention pass that counts and deletes everything it can see deletes another
+// product's backups — and reports success.
+func TestPruneMatchingIgnoresForeignObjects(t *testing.T) {
+	now := time.Now()
+	d := &fakeDest{objs: []Object{
+		{Name: "camp-3.campbk", Modified: now},
+		{Name: "camp-2.campbk", Modified: now.Add(-time.Hour)},
+		{Name: "camp-1.campbk", Modified: now.Add(-2 * time.Hour)},
+		{Name: "customer-invoices.zip", Modified: now.Add(-99 * time.Hour)},
+		{Name: "qryptoscan-1.qsb", Modified: now.Add(-98 * time.Hour)},
+	}}
+	ours := func(o Object) bool { return strings.HasSuffix(o.Name, ".campbk") }
+
+	deleted, err := PruneMatching(context.Background(), d, 2, ours)
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if len(deleted) != 1 || deleted[0] != "camp-1.campbk" {
+		t.Fatalf("deleted %v, want only the oldest .campbk", deleted)
+	}
+	for _, gone := range d.deleted {
+		if !strings.HasSuffix(gone, ".campbk") {
+			t.Errorf("deleted an object that is not ours: %q", gone)
+		}
+	}
+}
+
+// Foreign objects must not count toward `keep` either — otherwise a bucket with
+// enough unrelated files keeps zero of our backups while appearing to keep n.
+func TestPruneMatchingDoesNotCountForeignObjectsTowardKeep(t *testing.T) {
+	now := time.Now()
+	d := &fakeDest{objs: []Object{
+		{Name: "unrelated-a", Modified: now},
+		{Name: "unrelated-b", Modified: now},
+		{Name: "camp-2.campbk", Modified: now.Add(-time.Hour)},
+		{Name: "camp-1.campbk", Modified: now.Add(-2 * time.Hour)},
+	}}
+	ours := func(o Object) bool { return strings.HasSuffix(o.Name, ".campbk") }
+	deleted, err := PruneMatching(context.Background(), d, 2, ours)
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if len(deleted) != 0 {
+		t.Errorf("deleted %v; both of our backups are within keep=2", deleted)
+	}
+}

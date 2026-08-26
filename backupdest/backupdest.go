@@ -57,13 +57,42 @@ type Destination interface {
 //
 // keep <= 0 disables it, because "keep zero backups" is far more likely to be an
 // unset config value than a deliberate instruction to delete everything.
+//
+// It considers EVERY object the destination lists. Use PruneMatching whenever the
+// destination might hold anything else.
 func Prune(ctx context.Context, d Destination, keep int) ([]string, error) {
+	return PruneMatching(ctx, d, keep, nil)
+}
+
+// PruneMatching keeps the newest `keep` objects for which match returns true, and
+// deletes the rest of the MATCHING ones. Objects that do not match are never
+// listed for deletion and never counted toward `keep`.
+//
+// THIS EXISTS BECAUSE A BUCKET IS NOT ALWAYS OURS. Customers point backups at a
+// bucket they already use, or at one shared between products — PKI, CAMP and
+// QryptoScan can all be configured to the same place. A retention pass that
+// counts and deletes every object it can see will happily delete another
+// product's backups, or a customer's unrelated files, and report a successful
+// retention run.
+//
+// QryptoScan's own implementation filtered on its name prefix and suffix for
+// exactly this reason. Moving to a shared package must not lose that.
+func PruneMatching(ctx context.Context, d Destination, keep int, match func(Object) bool) ([]string, error) {
 	if keep <= 0 {
 		return nil, nil
 	}
-	objs, err := d.List(ctx)
+	all, err := d.List(ctx)
 	if err != nil {
 		return nil, err
+	}
+	objs := all
+	if match != nil {
+		objs = objs[:0:0]
+		for _, o := range all {
+			if match(o) {
+				objs = append(objs, o)
+			}
+		}
 	}
 	sort.Slice(objs, func(i, j int) bool { return objs[i].Modified.After(objs[j].Modified) })
 	var deleted []string
