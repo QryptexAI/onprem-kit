@@ -1,6 +1,7 @@
 # onprem-kit
 
-Shared on-prem licensing, hostname and trial logic for PKI, CAMP and QryptoScan.
+Shared logic for PKI, CAMP and QryptoScan — the parts that must mean the
+same thing in every product.
 
 A sibling repo, like `portal-kit`. Clone it BESIDE the product repos:
 
@@ -12,10 +13,10 @@ arrangement already used for PKI's `pkg/auth` and `pkg/nodelock`.
 
 ## Packages
 
-- **`licence`** — verify a vendor-signed licence: signature → product → validity
-  window → **URL** → node-lock. Per-product identity (vendor key, product
-  string, issuer, evaluation caps) is supplied through `Spec`; nothing else
-  differs between products.
+- **`backupdest`** — where a backup is written, and the credential handling that
+  goes with it. `Redacted()` MASKS rather than removes, which is right for a log
+  line and wrong for anything a form round-trips; see the products' own notes.
+- **`serviceurl`** — the configured public URL, and the port arithmetic around it.
 - **`hostmatch`** — the hostname questions: does this licence name the address we
   are served on, and does this certificate cover it (RFC 6125, wildcards
   included).
@@ -25,13 +26,14 @@ arrangement already used for PKI's `pkg/auth` and `pkg/nodelock`.
   is otherwise discovered when the gateway will not start — with the product off
   the network and the person who pressed the button unable to reach the screen
   they pressed it on.
-- **`trial`** — the 30-day clock from first boot, with a high-water mark so
-  winding the system clock back does not extend it.
-- **`trial/trialtest`** — the conformance suite each product runs against its own
-  `trial.Store`. The guarantee that matters — `Start` must not overwrite — cannot
-  be tested where the logic lives, because `Begin` only calls `Start` when no
-  date exists. A store that upserts passes every test in `trial` and then
-  restarts the clock on every boot in production.
+- **`pqc`** — the vocabulary CAMP and QryptoScan must share to produce ONE
+  CBOM rather than two: the risk enum, CycloneDX's cryptoFunctions, the
+  Appendix A §2 table, and — the actual point — `BOMRef`, the identity function
+  both products call and neither implements. Types duplicate harmlessly;
+  identity does not.
+
+`licence` and `trial` were documented here for some time and are not in this
+repository. The list above is what is actually present.
 
 ## Why this exists
 
