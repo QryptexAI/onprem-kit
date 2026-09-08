@@ -180,6 +180,69 @@ var native = map[string]Algorithm{
 	"sha384":                {Family: FamilySHA2, Parameter: "sha384"},
 	"sha-512":               {Family: FamilySHA2, Parameter: "sha512"},
 	"sha512":                {Family: FamilySHA2, Parameter: "sha512"},
+
+	// The POST-QUANTUM standards, under their own spellings.
+	//
+	// These were missing, and their absence was quietly load-bearing. CAMP-6's
+	// signature rollup detects ML-DSA with SQL LIKE '%ML-DSA%' because the
+	// vocabulary could not answer, and a vendor's own CBOM names algorithms the
+	// way FIPS 203/204/205 do — so the one place a supplier states what its
+	// product supports produced FamilyUnknown for every entry.
+	//
+	// Two vocabularies wearing a different hat is what this map exists to
+	// prevent. It was happening here.
+	"ml-kem":      {Family: FamilyMLKEM},
+	"ml-kem-512":  {Family: FamilyMLKEM, Parameter: "mlkem512"},
+	"ml-kem-768":  {Family: FamilyMLKEM, Parameter: "mlkem768"},
+	"ml-kem-1024": {Family: FamilyMLKEM, Parameter: "mlkem1024"},
+	"ml-dsa":      {Family: FamilyMLDSA},
+	"ml-dsa-44":   {Family: FamilyMLDSA, Parameter: "mldsa44"},
+	"ml-dsa-65":   {Family: FamilyMLDSA, Parameter: "mldsa65"},
+	"ml-dsa-87":   {Family: FamilyMLDSA, Parameter: "mldsa87"},
+	// FIPS 205 names twelve parameter sets and they are ENUMERATED rather than
+	// matched by prefix. A prefix rule would claim to recognise anything
+	// beginning "slh-dsa", including a spelling nobody standardised, and this
+	// map's whole job is to refuse to guess.
+	"slh-dsa":            {Family: FamilySLHDSA},
+	"slh-dsa-sha2-128s":  {Family: FamilySLHDSA, Parameter: "slhdsasha2128s"},
+	"slh-dsa-sha2-128f":  {Family: FamilySLHDSA, Parameter: "slhdsasha2128f"},
+	"slh-dsa-sha2-192s":  {Family: FamilySLHDSA, Parameter: "slhdsasha2192s"},
+	"slh-dsa-sha2-192f":  {Family: FamilySLHDSA, Parameter: "slhdsasha2192f"},
+	"slh-dsa-sha2-256s":  {Family: FamilySLHDSA, Parameter: "slhdsasha2256s"},
+	"slh-dsa-sha2-256f":  {Family: FamilySLHDSA, Parameter: "slhdsasha2256f"},
+	"slh-dsa-shake-128s": {Family: FamilySLHDSA, Parameter: "slhdsashake128s"},
+	"slh-dsa-shake-128f": {Family: FamilySLHDSA, Parameter: "slhdsashake128f"},
+	"slh-dsa-shake-192s": {Family: FamilySLHDSA, Parameter: "slhdsashake192s"},
+	"slh-dsa-shake-192f": {Family: FamilySLHDSA, Parameter: "slhdsashake192f"},
+	"slh-dsa-shake-256s": {Family: FamilySLHDSA, Parameter: "slhdsashake256s"},
+	"slh-dsa-shake-256f": {Family: FamilySLHDSA, Parameter: "slhdsashake256f"},
+}
+
+// squashed indexes every entry with its separators removed, so one spelling of a
+// name finds the other. Built once, from native, so there is exactly one place
+// an algorithm is declared.
+//
+// It is a FALLBACK, tried only after an exact miss. Separator-insensitive
+// matching is a convenience for spellings of the SAME name — "ML-KEM-768" and
+// "mlkem768" — and letting it run first would let it decide cases the exact map
+// already answers.
+var squashed = func() map[string]Algorithm {
+	m := make(map[string]Algorithm, len(native))
+	for k, v := range native {
+		s := stripSeparators(k)
+		// A collision would mean two DIFFERENT algorithms whose names differ
+		// only in punctuation. There are none today; if one ever appears, the
+		// exact map still answers it and the fallback simply declines.
+		if _, clash := m[s]; clash {
+			continue
+		}
+		m[s] = v
+	}
+	return m
+}()
+
+func stripSeparators(s string) string {
+	return strings.NewReplacer("-", "", "_", "", " ", "", ".", "").Replace(s)
 }
 
 // Normalise maps a product's own name for an algorithm onto a shared identity.
@@ -194,6 +257,12 @@ func Normalise(nativeName string) (Algorithm, bool) {
 		return Algorithm{Family: FamilyUnknown}, false
 	}
 	a, ok := native[key]
+	if !ok {
+		// One name, several spellings. FIPS 203 writes ML-KEM-768 and CAMP's
+		// wire names write mlkem768; both are the same algorithm and neither is
+		// wrong.
+		a, ok = squashed[stripSeparators(key)]
+	}
 	if !ok {
 		return Algorithm{Family: FamilyUnknown, Native: nativeName}, false
 	}
