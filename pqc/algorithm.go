@@ -264,10 +264,74 @@ func Normalise(nativeName string) (Algorithm, bool) {
 		a, ok = squashed[stripSeparators(key)]
 	}
 	if !ok {
+		// FAMILY PLUS PARAMETER, which is the form a network probe produces.
+		//
+		// CAMP writes fmt.Sprintf("%s-%d", algorithm, bits) — RSA-3072,
+		// ECDSA-256 — so every key it discovers missed the table entirely and
+		// landed as crypto/unknown/rsa3072 with no risk assessment. An agency's
+		// CBOM said "unclassified" for an estate of plain RSA.
+		//
+		// It also broke the merge this package exists for: QryptoScan emits the
+		// coarse crypto/rsa and CAMP emitted crypto/unknown/rsa3072, which are
+		// not the same component and never would be. Split, they become
+		// crypto/rsa and crypto/rsa/3072 — related, distinct, and exactly the
+		// coarse-versus-specific pair BOMRef is designed around.
+		//
+		// Only a HEAD THAT IS ITSELF A KNOWN ALGORITHM is accepted, so this
+		// cannot invent a family out of an unrecognised name: RSA-3072 splits,
+		// PLUMBUS-9 does not.
+		if split, param, found := splitParameter(key); found {
+			split.Native, split.Parameter = nativeName, param
+			return split, true
+		}
 		return Algorithm{Family: FamilyUnknown, Native: nativeName}, false
 	}
 	a.Native = nativeName
 	return a, true
+}
+
+// splittable names the families whose parameter is a FREE VALUE — a modulus
+// size, a curve — so any tail is plausible and the family is what carries the
+// risk. RSA-3072 and RSA-4096 are both RSA, and a size this package has not seen
+// is still RSA.
+//
+// The post-quantum families are deliberately absent. Their parameter sets are
+// ENUMERATED by the standards, so a tail that is not one of them is not a
+// variant — it is a name for something that does not exist, and accepting it
+// would put a fabricated algorithm in a document an agency submits.
+// SLH-DSA-SHA3-128s is the case that proves it: FIPS 205 defines SHA2 and SHAKE
+// variants and no SHA3 one, and splitting would have reported it as a genuine
+// SLH-DSA parameter set. Those names must match the table exactly.
+var splittable = map[Family]bool{
+	FamilyRSA: true, FamilyEC: true, FamilyDH: true, FamilyDSA: true,
+	FamilyAES: true, FamilySHA2: true, FamilyLegacySym: true,
+}
+
+// splitParameter tries "<known algorithm><sep><parameter>".
+//
+// Separators only — it never splits inside a word, so ED25519 stays whole while
+// Ed25519-256 does not. The parameter keeps the caller's spelling; BOMRef
+// normalises it.
+func splitParameter(key string) (Algorithm, string, bool) {
+	for i := len(key) - 1; i > 0; i-- {
+		switch key[i] {
+		case '-', '_', ' ', '/', '.':
+		default:
+			continue
+		}
+		head, tail := key[:i], key[i+1:]
+		if tail == "" {
+			continue
+		}
+		a, ok := native[head]
+		if !ok {
+			a, ok = squashed[stripSeparators(head)]
+		}
+		if ok && splittable[a.Family] {
+			return a, tail, true
+		}
+	}
+	return Algorithm{}, "", false
 }
 
 // Assess returns the risk for an algorithm, and whether that answer rests on
