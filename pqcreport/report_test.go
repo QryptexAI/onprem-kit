@@ -71,3 +71,59 @@ func TestHexParsing(t *testing.T) {
 		t.Error("an unparseable colour should fall back to grey, not panic")
 	}
 }
+
+// The core PDF fonts are cp1252, so a UTF-8 em dash written straight through
+// arrives as two bytes and renders as two wrong glyphs. Every string the report
+// prints goes through latin1 — including operator-supplied text, because
+// justifications are typed by people and people paste smart quotes.
+func TestTypographyIsTransliterated(t *testing.T) {
+	for in, want := range map[string]string{
+		"a — b":      "a - b",
+		"a • b":      "a - b",
+		"“quoted”":   `"quoted"`,
+		"it’s":       "it's",
+		"more…":      "more...",
+		"CAMP · PKI": "CAMP - PKI",
+	} {
+		if got := latin1(in); got != want {
+			t.Errorf("latin1(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// Accented Latin survives, because cp1252 has it. A name is worth keeping.
+func TestAccentedLatinSurvives(t *testing.T) {
+	if got := latin1("Amélie Moreau"); got != "Amélie Moreau" {
+		t.Errorf("latin1 mangled an accented name: %q", got)
+	}
+}
+
+// Anything cp1252 cannot represent becomes '?' rather than being dropped. A
+// dropped character is a silent lie about what the operator wrote.
+func TestUnrepresentableBecomesAQuestionMark(t *testing.T) {
+	got := latin1("host-東京-01")
+	if strings.Contains(got, "東") {
+		t.Errorf("non-Latin passed through unencoded: %q", got)
+	}
+	if !strings.Contains(got, "?") {
+		t.Errorf("non-Latin was dropped instead of marked: %q", got)
+	}
+}
+
+// The itemised section is what makes the report actionable: the table says how
+// much RSA there is, this says which box to go and fix.
+func TestItemisedOccurrencesAreRendered(t *testing.T) {
+	r := sample()
+	r.Algorithms[0].Sightings = []string{"ldn-core-sw1:22", "ldn-core-sw2:22"}
+	var buf bytes.Buffer
+	if err := Render(&buf, r); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	plain := bytes.Buffer{}
+	if err := Render(&plain, sample()); err != nil {
+		t.Fatal(err)
+	}
+	if buf.Len() <= plain.Len() {
+		t.Errorf("itemised report (%d bytes) is not larger than the consolidated one (%d)", buf.Len(), plain.Len())
+	}
+}

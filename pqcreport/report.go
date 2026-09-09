@@ -57,6 +57,11 @@ type Algorithm struct {
 	Risk string
 	// Phase is the M-26-15 migration phase where one applies.
 	Phase string
+	// Sightings is WHERE it was seen, one line each — an address and port for
+	// CAMP, a path and line for QryptoScan. The consolidated table answers "how
+	// much RSA is there"; this answers "which box do I go and fix", which is the
+	// question somebody actually has to act on.
+	Sightings []string
 }
 
 // Exception is a decision somebody signed their name to.
@@ -118,6 +123,13 @@ func Render(w io.Writer, r Report) error {
 		}
 	}
 
+	if hasSightings(r.Algorithms) {
+		section(pdf, "Itemised occurrences")
+		body(pdf, "Every place each algorithm was observed. The table above is the "+
+			"count; this is the list.")
+		itemised(pdf, r.Algorithms)
+	}
+
 	section(pdf, "Accepted risk and incapability")
 	exceptions(pdf, r.Exceptions)
 
@@ -137,7 +149,7 @@ func Render(w io.Writer, r Report) error {
 
 func title(pdf *fpdf.Fpdf, r Report) {
 	pdf.SetFont("Helvetica", "B", 20)
-	pdf.MultiCell(textW, 9, "Cryptographic posture", "", "L", false)
+	pdf.MultiCell(textW, 9, latin1("Cryptographic posture"), "", "L", false)
 	pdf.SetFont("Helvetica", "", 11)
 	pdf.SetTextColor(90, 90, 90)
 	line := r.Product
@@ -147,8 +159,8 @@ func title(pdf *fpdf.Fpdf, r Report) {
 	if r.Scope != "" {
 		line += "  ·  " + r.Scope
 	}
-	pdf.MultiCell(textW, 6, line, "", "L", false)
-	pdf.MultiCell(textW, 6, "Generated "+r.Generated.UTC().Format("2 January 2006, 15:04 MST"), "", "L", false)
+	pdf.MultiCell(textW, 6, latin1(line), "", "L", false)
+	pdf.MultiCell(textW, 6, latin1("Generated "+r.Generated.UTC().Format("2 January 2006, 15:04 MST")), "", "L", false)
 	pdf.SetTextColor(0, 0, 0)
 	pdf.Ln(3)
 }
@@ -156,19 +168,19 @@ func title(pdf *fpdf.Fpdf, r Report) {
 func section(pdf *fpdf.Fpdf, s string) {
 	pdf.Ln(4)
 	pdf.SetFont("Helvetica", "B", 13)
-	pdf.MultiCell(textW, 7, s, "", "L", false)
+	pdf.MultiCell(textW, 7, latin1(s), "", "L", false)
 	pdf.SetFont("Helvetica", "", 10)
 }
 
 func body(pdf *fpdf.Fpdf, s string) {
 	pdf.SetFont("Helvetica", "", 10)
-	pdf.MultiCell(textW, 5, s, "", "L", false)
+	pdf.MultiCell(textW, 5, latin1(s), "", "L", false)
 	pdf.Ln(1)
 }
 
 func bullet(pdf *fpdf.Fpdf, s string) {
 	pdf.SetFont("Helvetica", "", 10)
-	pdf.MultiCell(textW, 5, "•  "+s, "", "L", false)
+	pdf.MultiCell(textW, 5, latin1("-  "+s), "", "L", false)
 }
 
 func severities(pdf *fpdf.Fpdf, ss []Severity) {
@@ -182,7 +194,7 @@ func severities(pdf *fpdf.Fpdf, ss []Severity) {
 		pdf.SetFillColor(rr, gg, bb)
 		pdf.SetTextColor(255, 255, 255)
 		pdf.SetFont("Helvetica", "B", 10)
-		pdf.CellFormat(34, 8, fmt.Sprintf(" %d  %s", s.Count, s.Label), "", 0, "L", true, 0, "")
+		pdf.CellFormat(34, 8, latin1(fmt.Sprintf(" %d  %s", s.Count, s.Label)), "", 0, "L", true, 0, "")
 		pdf.SetTextColor(0, 0, 0)
 		pdf.CellFormat(4, 8, "", "", 0, "L", false, 0, "")
 	}
@@ -199,7 +211,7 @@ func algorithms(pdf *fpdf.Fpdf, as []Algorithm) {
 	pdf.SetFont("Helvetica", "B", 9)
 	pdf.SetFillColor(238, 238, 240)
 	for i, h := range head {
-		pdf.CellFormat(wds[i], 7, h, "B", 0, "L", true, 0, "")
+		pdf.CellFormat(wds[i], 7, latin1(h), "B", 0, "L", true, 0, "")
 	}
 	pdf.Ln(-1)
 	pdf.SetFont("Helvetica", "", 9)
@@ -214,11 +226,46 @@ func algorithms(pdf *fpdf.Fpdf, as []Algorithm) {
 		if phase == "" {
 			phase = "—"
 		}
-		pdf.CellFormat(wds[0], 6, a.Name, "B", 0, "L", false, 0, "")
+		pdf.CellFormat(wds[0], 6, latin1(a.Name), "B", 0, "L", false, 0, "")
 		pdf.CellFormat(wds[1], 6, fmt.Sprintf("%d", a.Occurrences), "B", 0, "L", false, 0, "")
-		pdf.CellFormat(wds[2], 6, risk, "B", 0, "L", false, 0, "")
-		pdf.CellFormat(wds[3], 6, phase, "B", 0, "L", false, 0, "")
+		pdf.CellFormat(wds[2], 6, latin1(risk), "B", 0, "L", false, 0, "")
+		pdf.CellFormat(wds[3], 6, latin1(phase), "B", 0, "L", false, 0, "")
 		pdf.Ln(-1)
+	}
+	pdf.Ln(2)
+}
+
+func hasSightings(as []Algorithm) bool {
+	for _, a := range as {
+		if len(a.Sightings) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// itemised lists every sighting under its algorithm.
+//
+// Grouped rather than one flat list of hundreds: the algorithm is the unit of
+// migration work, and a reader scanning for "what do I do about RSA-1024" wants
+// its eight endpoints together, not scattered through an estate-wide table.
+func itemised(pdf *fpdf.Fpdf, as []Algorithm) {
+	for _, a := range as {
+		if len(a.Sightings) == 0 {
+			continue
+		}
+		pdf.Ln(2)
+		pdf.SetFont("Helvetica", "B", 10)
+		head := a.Name
+		if a.Risk != "" {
+			head += "  (" + a.Risk + ")"
+		}
+		pdf.MultiCell(textW, 5.4, latin1(head), "", "L", false)
+		pdf.SetFont("Courier", "", 8.5)
+		for _, sight := range a.Sightings {
+			pdf.MultiCell(textW-6, 4.2, latin1("   "+sight), "", "L", false)
+		}
+		pdf.SetFont("Helvetica", "", 10)
 	}
 	pdf.Ln(2)
 }
@@ -231,15 +278,15 @@ func exceptions(pdf *fpdf.Fpdf, es []Exception) {
 	}
 	for _, e := range es {
 		pdf.SetFont("Helvetica", "B", 10)
-		pdf.MultiCell(textW, 5, e.Subject+"  —  "+e.Kind, "", "L", false)
+		pdf.MultiCell(textW, 5, latin1(e.Subject+"  -  "+e.Kind), "", "L", false)
 		pdf.SetFont("Helvetica", "", 9)
-		pdf.MultiCell(textW, 4.6, e.Justification, "", "L", false)
+		pdf.MultiCell(textW, 4.6, latin1(e.Justification), "", "L", false)
 		pdf.SetTextColor(90, 90, 90)
 		meta := "Granted by " + e.GrantedBy
 		if !e.Expires.IsZero() {
 			meta += ", expires " + e.Expires.UTC().Format("2 January 2006")
 		}
-		pdf.MultiCell(textW, 4.6, meta, "", "L", false)
+		pdf.MultiCell(textW, 4.6, latin1(meta), "", "L", false)
 		pdf.SetTextColor(0, 0, 0)
 		pdf.Ln(2)
 	}
@@ -250,17 +297,17 @@ func footer(pdf *fpdf.Fpdf, r Report) {
 	pdf.SetFont("Helvetica", "", 8)
 	pdf.SetTextColor(120, 120, 120)
 	if r.CBOMSHA256 != "" {
-		pdf.MultiCell(textW, 4.4,
+		pdf.MultiCell(textW, 4.4, latin1(
 			"This report summarises the CycloneDX cryptographic bill of materials "+
 				"with checksum sha256:"+r.CBOMSHA256+". The bill of materials is the "+
-				"machine-readable record; this document is a reading of it.", "", "L", false)
+				"machine-readable record; this document is a reading of it."), "", "L", false)
 	} else {
-		pdf.MultiCell(textW, 4.4,
+		pdf.MultiCell(textW, 4.4, latin1(
 			"No cryptographic bill of materials was attached to this report, so there "+
-				"is no checksum to tie it to one.", "", "L", false)
+				"is no checksum to tie it to one."), "", "L", false)
 	}
 	if r.Version != "" {
-		pdf.MultiCell(textW, 4.4, "Produced by "+r.Product+" "+r.Version+".", "", "L", false)
+		pdf.MultiCell(textW, 4.4, latin1("Produced by "+r.Product+" "+r.Version+"."), "", "L", false)
 	}
 	pdf.SetTextColor(0, 0, 0)
 }
