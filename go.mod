@@ -3,6 +3,7 @@ module github.com/QryptexAI/onprem-kit
 go 1.25.0
 
 require (
+	github.com/go-pdf/fpdf v0.9.0
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/pkg/sftp v1.13.11
 	golang.org/x/crypto v0.55.0
