@@ -169,6 +169,9 @@ func (h *harness) mux(svc *Service) http.Handler {
 		u, _, _ := h.realm.FindUser(r.Context(), r.PathValue("login"))
 		hd.AdminResetPassword(w, r, h.realm, u.ID, false)
 	})
+	mux.HandleFunc("/api/v1/admin/mfa-required", func(w http.ResponseWriter, r *http.Request) {
+		hd.AdminMFARequired(w, r, h.realm)
+	})
 	mux.HandleFunc("POST /api/v1/admin/users/{login}/reset-mfa", func(w http.ResponseWriter, r *http.Request) {
 		u, _, _ := h.realm.FindUser(r.Context(), r.PathValue("login"))
 		hd.AdminResetMFA(w, r, h.realm, u.ID)
@@ -441,21 +444,23 @@ func TestKeycloak_AuthenticatorApp(t *testing.T) {
 // The organisation's "require" flag is written without disturbing anything else.
 func TestKeycloak_RequireMFAKeepsTheRealm(t *testing.T) {
 	h := newHarness(t)
-	ctx := context.Background()
-	if err := h.realm.SetMFARequired(ctx, true); err != nil {
-		t.Fatal(err)
+	h.user("fay", "Original-pass-123")
+	code, out := h.post("/api/v1/admin/mfa-required", "", map[string]bool{"required": true})
+	want(t, "require MFA", code, out, http.StatusOK, "")
+	if code, out = h.get("/api/v1/admin/mfa-required", ""); out["required"] != true {
+		t.Fatalf("flag not set: %d %v", code, out)
 	}
-	if on, _ := h.realm.MFARequired(ctx); !on {
-		t.Fatal("flag not set")
+	if _, out = h.get("/api/v1/mfa", "fay"); out["required"] != true || out["enabled"] != false {
+		t.Fatalf("a member does not see the requirement: %v", out)
 	}
-	_, out := h.m.call(t, http.MethodGet, "/admin/realms/"+h.realm.Name, nil)
+	_, raw := h.m.call(t, http.MethodGet, "/admin/realms/"+h.realm.Name, nil)
 	var rep struct {
 		DisplayName    string            `json:"displayName"`
 		PasswordPolicy string            `json:"passwordPolicy"`
 		Attributes     map[string]string `json:"attributes"`
 		OTPLookAhead   int               `json:"otpPolicyLookAheadWindow"`
 	}
-	_ = json.Unmarshal(out, &rep)
+	_ = json.Unmarshal(raw, &rep)
 	if rep.DisplayName != "Kept" || rep.PasswordPolicy != "length(12)" || rep.Attributes["keepMe"] != "yes" || rep.OTPLookAhead != 5 {
 		t.Fatalf("writing the flag disturbed the realm: %+v", rep)
 	}

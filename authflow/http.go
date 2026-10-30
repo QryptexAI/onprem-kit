@@ -227,6 +227,28 @@ func (h *Handlers) AdminResetMFA(w http.ResponseWriter, r *http.Request, realm R
 	h.answer(w, h.S.AdminResetMFA(r.Context(), realm, userID, h.PortalURL(realm.Name)))
 }
 
+// AdminMFARequired reads (GET → {"required": bool}) or sets ({"required": bool})
+// the organisation's "require an authenticator app" setting — the toggle in the
+// portal-kit Security panel. Behind the product's own permission check.
+func (h *Handlers) AdminMFARequired(w http.ResponseWriter, r *http.Request, realm Realm) {
+	if r.Method == http.MethodGet {
+		on, err := realm.MFARequired(r.Context())
+		if err != nil {
+			h.answer(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"required": on})
+		return
+	}
+	var in struct {
+		Required bool `json:"required"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	h.answer(w, realm.SetMFARequired(r.Context(), in.Required))
+}
+
 // answer writes {"ok": true} or the error as the person at the screen should read it.
 func (h *Handlers) answer(w http.ResponseWriter, err error) {
 	var pe *PolicyError
