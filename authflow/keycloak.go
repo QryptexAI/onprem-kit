@@ -258,6 +258,36 @@ func (r Realm) SignOutEverywhere(ctx context.Context, id string) error {
 	return err
 }
 
+// SignOutOthers ends every session the user has except keep — a password changed
+// from inside the portal leaves the person signed in where they made the change,
+// and nowhere else. Signing that session out too would force a fresh sign-in, and
+// for someone with an authenticator app the code they just typed is already spent:
+// Keycloak refuses a code it has seen. With keep empty it signs out everything.
+func (r Realm) SignOutOthers(ctx context.Context, id, keep string) error {
+	if keep == "" {
+		return r.SignOutEverywhere(ctx, id)
+	}
+	out, err := r.adminOK(ctx, http.MethodGet, "/users/"+url.PathEscape(id)+"/sessions", nil)
+	if err != nil {
+		return err
+	}
+	var sessions []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(out, &sessions); err != nil {
+		return err
+	}
+	for _, s := range sessions {
+		if s.ID == keep {
+			continue
+		}
+		if _, err := r.adminOK(ctx, http.MethodDelete, "/sessions/"+url.PathEscape(s.ID), nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type kcCredential struct {
 	ID          string `json:"id"`
 	Type        string `json:"type"`

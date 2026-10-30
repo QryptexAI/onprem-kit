@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"io"
@@ -157,7 +158,7 @@ func (h *harness) mux(svc *Service) http.Handler {
 			if err != nil || !ok {
 				return Caller{}, false
 			}
-			return Caller{Realm: h.realm, UserID: u.ID, Login: u.Username, Email: u.Email}, true
+			return Caller{Realm: h.realm, UserID: u.ID, Login: u.Username, Email: u.Email, SessionID: r.Header.Get("X-Test-Session")}, true
 		},
 		PortalURL: func(string) string { return "https://portal.test" },
 		ClientIP:  func(*http.Request) string { return "198.51.100.7" },
@@ -246,6 +247,33 @@ func (h *harness) refreshToken(login, password string) string {
 	}
 	_ = json.NewDecoder(resp.Body).Decode(&t)
 	return t.RefreshToken
+}
+
+// session signs in and returns the refresh token and the session id ("sid") from
+// the access token, as a product's token validation would read it.
+func (h *harness) session(login, password string) (refresh, sid string) {
+	h.t.Helper()
+	form := url.Values{"grant_type": {"password"}, "client_id": {"portal"}, "username": {login}, "password": {password}}
+	resp, err := http.PostForm(h.realm.BaseURL+"/realms/"+h.realm.Name+"/protocol/openid-connect/token", form)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var t struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&t)
+	parts := strings.Split(t.AccessToken, ".")
+	if len(parts) != 3 {
+		h.t.Fatalf("no access token for %s", login)
+	}
+	payload, _ := base64.RawURLEncoding.DecodeString(parts[1])
+	var claims struct {
+		SID string `json:"sid"`
+	}
+	_ = json.Unmarshal(payload, &claims)
+	return t.RefreshToken, claims.SID
 }
 
 func (h *harness) refreshWorks(rt string) bool {
@@ -438,6 +466,28 @@ func TestKeycloak_AuthenticatorApp(t *testing.T) {
 	}
 	if b := h.mail.last(t, "dan@acme.test").body; !strings.Contains(b, "An administrator removed") {
 		t.Errorf("admin removal email:\n%s", b)
+	}
+}
+
+// Changing a password in the portal keeps the session it was changed from and
+// ends every other one.
+func TestKeycloak_ChangeKeepsThisSessionOnly(t *testing.T) {
+	h := newHarness(t)
+	h.user("gus", "Original-pass-123")
+	here, hereSID := h.session("gus", "Original-pass-123")
+	elsewhere, _ := h.session("gus", "Original-pass-123")
+
+	b, _ := json.Marshal(map[string]string{"currentPassword": "Original-pass-123", "password": "Gus-new-pass-456"})
+	req, _ := http.NewRequest(http.MethodPost, h.srv.URL+"/api/v1/password/change", bytes.NewReader(b))
+	req.Header.Set("X-Test-User", "gus")
+	req.Header.Set("X-Test-Session", hereSID)
+	code, out := h.do(req)
+	want(t, "change", code, out, http.StatusOK, "")
+	if !h.refreshWorks(here) {
+		t.Error("the session the change was made from was signed out")
+	}
+	if h.refreshWorks(elsewhere) {
+		t.Error("another session survived the change")
 	}
 }
 

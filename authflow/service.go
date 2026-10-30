@@ -177,15 +177,16 @@ func (s *Service) CompleteFirstLogin(ctx context.Context, realm Realm, login, te
 // Caller is the signed-in person a self-service request is for, as the product's
 // own authentication established it.
 type Caller struct {
-	Realm  Realm
-	UserID string
-	Login  string // the name they sign in with
-	Email  string
+	Realm     Realm
+	UserID    string
+	Login     string // the name they sign in with
+	Email     string
+	SessionID string // the token's "sid" claim: the session the request came from
 }
 
 // ChangePassword is flow B: signed in, they change their own password. The current
-// password (and code) are checked the way sign-in checks them, then every session
-// is signed out; the portal signs back in with the new password it already holds.
+// password (and code) are checked the way sign-in checks them, then every OTHER
+// session is signed out; the one they made the change from carries on.
 func (s *Service) ChangePassword(ctx context.Context, c Caller, current, code, newPassword, ip, portalURL string) error {
 	switch chk, err := c.Realm.CheckPassword(ctx, c.Login, current, code); {
 	case err != nil:
@@ -196,7 +197,7 @@ func (s *Service) ChangePassword(ctx context.Context, c Caller, current, code, n
 	if err := c.Realm.SetPassword(ctx, c.UserID, newPassword, false); err != nil {
 		return err
 	}
-	if err := c.Realm.SignOutEverywhere(ctx, c.UserID); err != nil {
+	if err := c.Realm.SignOutOthers(ctx, c.UserID, c.SessionID); err != nil {
 		return err
 	}
 	s.changed(ctx, c.Email, ip, portalURL)
