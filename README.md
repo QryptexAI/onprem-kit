@@ -26,6 +26,14 @@ arrangement already used for PKI's `pkg/auth` and `pkg/nodelock`.
   is otherwise discovered when the gateway will not start — with the product off
   the network and the person who pressed the button unable to reach the screen
   they pressed it on.
+- **`authflow`** — how a person recovers, changes and protects their password:
+  the emailed reset link, the "password changed" email, the in-portal change,
+  an administrator's emailed temporary password with its forced change, and
+  authenticator-app MFA. One HTTP contract (`Handlers.Mount`) that the
+  portal-kit account screens call, so the flows are the same code in every
+  product; the product supplies only how to reach its Keycloak realm, where
+  reset tokens live, how mail is sent and who the caller is. Its integration
+  tests run against a real Keycloak (see `keycloak_integration_test.go`).
 - **`pqc`** — the vocabulary CAMP and QryptoScan must share to produce ONE
   CBOM rather than two: the risk enum, CycloneDX's cryptoFunctions, the
   Appendix A §2 table, and — the actual point — `BOMRef`, the identity function
