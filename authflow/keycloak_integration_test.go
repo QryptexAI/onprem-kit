@@ -432,6 +432,10 @@ func TestKeycloak_AuthenticatorApp(t *testing.T) {
 	if h.check("dan", "Original-pass-123", h.code(secret, 1)) != CheckOK {
 		t.Fatal("password + code refused: the minimal update lost the password or the secret is wrong")
 	}
+	_, out = h.post("/api/v1/mfa/begin", "dan", nil)
+	intruder := out["secret"].(string)
+	code, out = h.post("/api/v1/mfa/enroll", "dan", map[string]string{"secret": intruder, "code": hotp([]byte(intruder), uint64(time.Now().Unix()/otpPeriod))})
+	want(t, "enrolling over an existing authenticator", code, out, http.StatusConflict, "MFA_ON")
 
 	code, out = h.post("/api/v1/password/change", "dan", map[string]string{"currentPassword": "Original-pass-123", "code": h.code(secret, 2), "password": "Dans-new-pass-456"})
 	want(t, "change", code, out, http.StatusOK, "")

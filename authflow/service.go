@@ -26,6 +26,7 @@ var (
 	ErrCodeInvalid     = errors.New("that code is not right; check the time on your phone and try again")
 	ErrMailOff         = errors.New("email is not set up here, so a reset link cannot be sent; ask your administrator to reset your password")
 	ErrFederated       = errors.New("this account's password is managed by its directory or identity provider")
+	ErrMFAAlreadyOn    = errors.New("an authenticator app is already set up; remove it first to set up a new one")
 )
 
 // SendFunc delivers one plain-text email.
@@ -261,10 +262,18 @@ func (s *Service) BeginMFA(issuer, account string) (secret, uri string, err erro
 	return secret, OTPAuthURI(issuer, account, secret), nil
 }
 
-// EnrollMFA saves the authenticator once a code from it checks out.
+// EnrollMFA saves the authenticator once a code from it checks out. It will not
+// REPLACE one: a session left open on a shared screen would otherwise be enough to
+// swap someone's authenticator for the intruder's. Replacing goes through
+// RemoveMFA, which needs the password and a current code.
 func (s *Service) EnrollMFA(ctx context.Context, c Caller, secret, code, portalURL string) error {
 	if !validOTPSecret(secret) || !VerifyCode(secret, code, s.Now()) {
 		return ErrCodeInvalid
+	}
+	if on, err := c.Realm.HasOTP(ctx, c.UserID); err != nil {
+		return err
+	} else if on {
+		return ErrMFAAlreadyOn
 	}
 	if err := c.Realm.SetOTP(ctx, c.UserID, secret); err != nil {
 		return err

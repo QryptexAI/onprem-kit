@@ -269,6 +269,8 @@ func (h *Handlers) answer(w http.ResponseWriter, err error) {
 		writeErr(w, http.StatusConflict, "NO_CHANGE_PENDING", "No password change is waiting for this account. Sign in as usual.")
 	case errors.Is(err, ErrCodeInvalid):
 		writeErr(w, http.StatusBadRequest, "CODE_INVALID", "That code isn't right. Check the time on your phone and try again.")
+	case errors.Is(err, ErrMFAAlreadyOn):
+		writeErr(w, http.StatusConflict, "MFA_ON", "An authenticator app is already set up. Remove it first to set up a new one.")
 	case errors.Is(err, ErrFederated):
 		writeErr(w, http.StatusConflict, "FEDERATED", "This account's password is managed by its directory or identity provider, not here.")
 	default:
