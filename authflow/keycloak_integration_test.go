@@ -447,6 +447,15 @@ func TestKeycloak_AuthenticatorApp(t *testing.T) {
 	temp := tempLine.FindStringSubmatch(h.mail.last(t, "dan@acme.test").body)
 	code, out = h.post("/api/v1/password/first-login", "", map[string]string{"login": "dan", "temporaryPassword": temp[1], "password": "Dans-third-pass-1"})
 	want(t, "first login without the code", code, out, http.StatusUnauthorized, "BAD_CREDENTIALS")
+	// The portal's sign-in sends the code and learns "change required" — and that
+	// SPENDS the code: Keycloak checks it before the required action. Resending it
+	// to first-login fails, which is why the sign-in card asks for a fresh one.
+	spent := h.code(secret, 5)
+	if h.check("dan", temp[1], spent) != CheckChangeRequired {
+		t.Fatal("temporary password + code did not report the forced change")
+	}
+	code, out = h.post("/api/v1/password/first-login", "", map[string]string{"login": "dan", "temporaryPassword": temp[1], "code": spent, "password": "Dans-third-pass-1"})
+	want(t, "first login with the code sign-in already spent", code, out, http.StatusUnauthorized, "BAD_CREDENTIALS")
 	code, out = h.post("/api/v1/password/first-login", "", map[string]string{"login": "dan", "temporaryPassword": temp[1], "code": h.code(secret, -1), "password": "Dans-third-pass-1"})
 	want(t, "first login with the code", code, out, http.StatusOK, "")
 
