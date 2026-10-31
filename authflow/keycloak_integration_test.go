@@ -577,6 +577,10 @@ func TestKeycloak_FederatedAccount(t *testing.T) {
 	}
 	c, body = h.post("/api/v1/admin/users/eve/reset-password", "", nil)
 	want(t, "admin reset (federated)", c, body, http.StatusConflict, "FEDERATED")
+	var stdout, stderr bytes.Buffer
+	if c := ResetAdminCommand(context.Background(), []string{"eve"}, func(context.Context, string) (Realm, error) { return h.realm, nil }, &stdout, &stderr); c != 1 || stdout.Len() != 0 {
+		t.Errorf("reset-admin (federated): exit %d, printed %q", c, stdout.String())
+	}
 
 	// Two-step sign-in is GitHub's: Keycloak never asks a brokered account for a
 	// code, so the organisation's rule does not reach it and an authenticator
@@ -589,6 +593,55 @@ func TestKeycloak_FederatedAccount(t *testing.T) {
 	secret, _ := NewOTPSecret()
 	c, body = h.post("/api/v1/mfa/enroll", "eve", map[string]string{"secret": secret, "code": hotp([]byte(secret), uint64(time.Now().Unix()/otpPeriod))})
 	want(t, "enrol (brokered)", c, body, http.StatusConflict, "MFA_MANAGED")
+}
+
+// The launcher's reset-admin: a locked-out administrator who has lost their phone
+// gets a temporary password on the terminal, no code to give, nothing emailed, and
+// every session signed out.
+func TestKeycloak_ResetFromHost(t *testing.T) {
+	h := newHarness(t)
+	h.user("ivy", "Original-pass-123")
+	session := h.refreshToken("ivy", "Original-pass-123")
+	_, out := h.post("/api/v1/mfa/begin", "ivy", nil)
+	secret := out["secret"].(string)
+	code, out := h.post("/api/v1/mfa/enroll", "ivy", map[string]string{"secret": secret, "code": hotp([]byte(secret), uint64(time.Now().Unix()/otpPeriod))})
+	want(t, "enroll", code, out, http.StatusOK, "")
+	mails := h.mail.count()
+
+	realmFor := func(context.Context, string) (Realm, error) { return h.realm, nil }
+	var stdout, stderr bytes.Buffer
+	if c := ResetAdminCommand(context.Background(), []string{"ivy@acme.test"}, realmFor, &stdout, &stderr); c != 0 {
+		t.Fatalf("exit %d: %s", c, stderr.String())
+	}
+	m := regexp.MustCompile(`\n    (\S+)\n`).FindStringSubmatch(stdout.String())
+	if m == nil || !strings.Contains(stdout.String(), "authenticator app was removed") {
+		t.Fatalf("output:\n%s", stdout.String())
+	}
+	if h.refreshWorks(session) {
+		t.Error("a session survived the reset")
+	}
+	if h.mail.count() != mails {
+		t.Error("the reset sent mail; the temporary password is for the terminal only")
+	}
+	if h.check("ivy", m[1], "") != CheckChangeRequired {
+		t.Fatal("the temporary password does not reach the forced change without a code")
+	}
+	code, out = h.post("/api/v1/password/first-login", "", map[string]string{"login": "ivy", "temporaryPassword": m[1], "password": "Ivys-new-pass-456"})
+	want(t, "first login", code, out, http.StatusOK, "")
+	if h.check("ivy", "Ivys-new-pass-456", "") != CheckOK {
+		t.Fatal("the chosen password does not sign in")
+	}
+
+	stdout.Reset()
+	if c := ResetAdminCommand(context.Background(), []string{"nobody@acme.test"}, realmFor, &stdout, &stderr); c != 1 || !strings.Contains(stderr.String(), "no account") {
+		t.Errorf("unknown account: exit %d, %q", c, stderr.String())
+	}
+	if c := ResetAdminCommand(context.Background(), nil, realmFor, &stdout, &stderr); c != 2 {
+		t.Errorf("no argument: exit %d", c)
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("a failed reset printed a password:\n%s", stdout.String())
+	}
 }
 
 func mustID(t *testing.T, h *harness, login string) string {
