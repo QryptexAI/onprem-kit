@@ -215,3 +215,18 @@ func TestRightmostForwardedAndLimitPerIP(t *testing.T) {
 		t.Errorf("codes %v, want 200 200 429 — a forged left-hand entry must not reset the limit", codes)
 	}
 }
+
+// Settings an administrator can change while the product runs are read when a
+// mail is due, not when the routes were built.
+func TestRequestReset_AsksReadyAtTheTime(t *testing.T) {
+	ready := false
+	svc := NewService("QryptoScan", NewMemTokens(), func(context.Context, string, string, string) error { return nil })
+	svc.Ready = func() bool { return ready }
+	if err := svc.RequestReset(context.Background(), Realm{}, "a@b.test", "https://x"); err != ErrMailOff {
+		t.Fatalf("mail not set up: got %v, want ErrMailOff", err)
+	}
+	ready = true
+	if !svc.canMail() {
+		t.Fatal("still reports mail off after it was set up")
+	}
+}

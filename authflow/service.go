@@ -33,11 +33,14 @@ var (
 type SendFunc func(ctx context.Context, to, subject, body string) error
 
 // Service runs the flows. Send is nil when the product has no working mail
-// settings; flows that need email then say so rather than pretending.
+// settings; flows that need email then say so rather than pretending. Ready, when
+// set, is asked at the moment of sending, for a product whose administrator can
+// set up email while it runs (CAMP, QryptoScan): false means "not set up".
 type Service struct {
 	Product string // as it appears in emails: "QryptexAI PKI", "QryptexAI CAMP", "QryptoScan"
 	Tokens  TokenStore
 	Send    SendFunc
+	Ready   func() bool
 	Now     func() time.Time
 
 	perAddress *Limiter
@@ -48,8 +51,11 @@ func NewService(product string, tokens TokenStore, send SendFunc) *Service {
 		perAddress: NewLimiter(resetsPerHour, time.Hour)}
 }
 
+// canMail reports whether email can go out right now.
+func (s *Service) canMail() bool { return s.Send != nil && (s.Ready == nil || s.Ready()) }
+
 func (s *Service) mail(ctx context.Context, to string, subject, body string) error {
-	if s.Send == nil || to == "" {
+	if !s.canMail() || to == "" {
 		return nil
 	}
 	return s.Send(ctx, to, subject, body)
@@ -64,7 +70,7 @@ func (s *Service) mail(ctx context.Context, to string, subject, body string) err
 // emailed link is used, so typing someone's address into the form costs them
 // nothing but an email.
 func (s *Service) RequestReset(ctx context.Context, realm Realm, email, portalURL string) error {
-	if s.Send == nil {
+	if !s.canMail() {
 		return ErrMailOff
 	}
 	email = strings.ToLower(strings.TrimSpace(email))
@@ -235,7 +241,7 @@ func (s *Service) IssueTempPassword(ctx context.Context, realm Realm, userID, po
 	if err := realm.SignOutEverywhere(ctx, u.ID); err != nil {
 		return "", false, err
 	}
-	if s.Send != nil && u.Email != "" {
+	if s.canMail() && u.Email != "" {
 		subj, body := tempPasswordEmail(s.Product, u.Username, temp, portalURL, TempPasswordTTL, newAccount)
 		if err := s.Send(ctx, u.Email, subj, body); err == nil {
 			return "", true, nil
