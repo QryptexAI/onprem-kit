@@ -16,9 +16,11 @@ type ResetToken struct {
 	Expires time.Time
 }
 
-// TokenStore holds outstanding reset links. Each product keeps its own — PKI in
-// memory beside its other sign-up state, CAMP and QryptoScan in Postgres so every
-// replica sees the same links.
+// TokenStore holds outstanding reset links. Each product keeps its own. All three
+// use MemTokens today because the service that mounts the flows runs as ONE
+// replica (PKI signup-service, camp-core, qryptoscan-service); scaling any of
+// them out needs a shared store first, or a link made on one replica is unknown
+// to the next.
 type TokenStore interface {
 	// Save stores t and drops any earlier token for the same realm and user, so
 	// asking for a new link cancels the old one.
