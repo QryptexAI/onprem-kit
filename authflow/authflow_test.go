@@ -2,6 +2,7 @@ package authflow
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -159,5 +160,29 @@ func TestEmails_SayWhatIsTrue(t *testing.T) {
 	_, body = passwordChangedEmail("QryptexAI PKI", time.Date(2026, 10, 30, 21, 5, 0, 0, time.UTC), "203.0.113.9", "https://qryptex.ai/app")
 	if !strings.Contains(body, "Fri 30 Oct 2026 at 21:05 UTC from 203.0.113.9") || strings.Contains(strings.ToLower(body), "password:") {
 		t.Errorf("changed email:\n%s", body)
+	}
+}
+
+// The routes a signed-in person uses act on THEM and must not be addressable at
+// anyone else. Enforced structurally: Mount gives them no path parameter, so there
+// is nothing for a later change to start honouring. (Moved here from PKI's
+// pki-service when its own self-service routes were replaced by these.)
+func TestSelfServiceRoutesTakeNoUserID(t *testing.T) {
+	src, err := os.ReadFile("http.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := 0
+	for _, line := range strings.Split(string(src), "\n") {
+		if !strings.Contains(line, "mux.HandleFunc(") {
+			continue
+		}
+		found++
+		if strings.Contains(line, "{") {
+			t.Errorf("an account route takes a path parameter, so it can be pointed at another user:\n  %s", strings.TrimSpace(line))
+		}
+	}
+	if found < 8 {
+		t.Fatalf("found %d routes in Mount, want 8 — this test is not checking what it thinks", found)
 	}
 }
