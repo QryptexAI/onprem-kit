@@ -2,6 +2,8 @@ package authflow
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -184,5 +186,32 @@ func TestSelfServiceRoutesTakeNoUserID(t *testing.T) {
 	}
 	if found < 8 {
 		t.Fatalf("found %d routes in Mount, want 8 — this test is not checking what it thinks", found)
+	}
+}
+
+// Only the entry the product's proxy appended is trusted; a forged one to its left
+// is ignored, so rotating it does not escape the limit.
+func TestRightmostForwardedAndLimitPerIP(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/", nil)
+	r.RemoteAddr = "10.0.0.9:5555"
+	if got := RightmostForwarded(r); got != "10.0.0.9" {
+		t.Errorf("no header: %q", got)
+	}
+	r.Header.Set("X-Forwarded-For", "6.6.6.6, 203.0.113.7")
+	if got := RightmostForwarded(r); got != "203.0.113.7" {
+		t.Errorf("forwarded: %q", got)
+	}
+
+	h := LimitPerIP(2, RightmostForwarded)(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	codes := []int{}
+	for _, forged := range []string{"1.1.1.1", "2.2.2.2", "3.3.3.3"} {
+		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req.Header.Set("X-Forwarded-For", forged+", 203.0.113.7")
+		w := httptest.NewRecorder()
+		h(w, req)
+		codes = append(codes, w.Code)
+	}
+	if codes[0] != 200 || codes[1] != 200 || codes[2] != http.StatusTooManyRequests {
+		t.Errorf("codes %v, want 200 200 429 — a forged left-hand entry must not reset the limit", codes)
 	}
 }
