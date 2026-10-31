@@ -43,6 +43,7 @@ var (
 	ErrMailOff         = errors.New("email is not set up here, so a reset link cannot be sent; ask your administrator to reset your password")
 	ErrFederated       = errors.New("this account's password is managed by its directory or identity provider")
 	ErrMFAAlreadyOn    = errors.New("an authenticator app is already set up; remove it first to set up a new one")
+	ErrMFAManaged      = errors.New("this account signs in through an identity provider, which handles its two-step sign-in")
 )
 
 // SendFunc delivers one plain-text email.
@@ -277,13 +278,31 @@ func (s *Service) IssueTempPassword(ctx context.Context, realm Realm, userID, po
 	return temp, false, nil
 }
 
-// MFAStatus is the caller's own authenticator state and the organisation's rule.
-func (s *Service) MFAStatus(ctx context.Context, c Caller) (enabled, required bool, err error) {
-	if enabled, err = c.Realm.HasOTP(ctx, c.UserID); err != nil {
-		return false, false, err
+// MFAState is the caller's own authenticator state and the organisation's rule.
+// ManagedBy names the identity provider an account signs in through (GitHub,
+// GitLab, an SSO provider). Keycloak never asks such an account for a code, so an
+// authenticator here would protect nothing: its two-step sign-in is the
+// provider's, and the organisation's rule does not apply to it.
+type MFAState struct {
+	Enabled   bool
+	Required  bool
+	ManagedBy string
+}
+
+func (s *Service) MFAStatus(ctx context.Context, c Caller) (MFAState, error) {
+	u, err := c.Realm.UserByID(ctx, c.UserID)
+	if err != nil {
+		return MFAState{}, err
 	}
-	required, err = c.Realm.MFARequired(ctx)
-	return enabled, required, err
+	if u.Brokered {
+		return MFAState{ManagedBy: u.Provider}, nil
+	}
+	var st MFAState
+	if st.Enabled, err = c.Realm.HasOTP(ctx, c.UserID); err != nil {
+		return MFAState{}, err
+	}
+	st.Required, err = c.Realm.MFARequired(ctx)
+	return st, err
 }
 
 // BeginMFA starts enrolment: a new secret and the URI for its QR code. Nothing is
@@ -302,6 +321,11 @@ func (s *Service) BeginMFA(issuer, account string) (secret, uri string, err erro
 func (s *Service) EnrollMFA(ctx context.Context, c Caller, secret, code, portalURL string) error {
 	if !validOTPSecret(secret) || !VerifyCode(secret, code, s.Now()) {
 		return ErrCodeInvalid
+	}
+	if u, err := c.Realm.UserByID(ctx, c.UserID); err != nil {
+		return err
+	} else if u.Brokered {
+		return ErrMFAManaged
 	}
 	if on, err := c.Realm.HasOTP(ctx, c.UserID); err != nil {
 		return err

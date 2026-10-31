@@ -577,6 +577,18 @@ func TestKeycloak_FederatedAccount(t *testing.T) {
 	}
 	c, body = h.post("/api/v1/admin/users/eve/reset-password", "", nil)
 	want(t, "admin reset (federated)", c, body, http.StatusConflict, "FEDERATED")
+
+	// Two-step sign-in is GitHub's: Keycloak never asks a brokered account for a
+	// code, so the organisation's rule does not reach it and an authenticator
+	// cannot be added here. QryptoScan's members are all accounts like this one.
+	c, body = h.post("/api/v1/admin/mfa-required", "", map[string]bool{"required": true})
+	want(t, "require MFA", c, body, http.StatusOK, "")
+	if c, body = h.get("/api/v1/mfa", "eve"); c != http.StatusOK || body["managedBy"] != "GitHub" || body["required"] != false {
+		t.Fatalf("brokered MFA status: %d %v", c, body)
+	}
+	secret, _ := NewOTPSecret()
+	c, body = h.post("/api/v1/mfa/enroll", "eve", map[string]string{"secret": secret, "code": hotp([]byte(secret), uint64(time.Now().Unix()/otpPeriod))})
+	want(t, "enrol (brokered)", c, body, http.StatusConflict, "MFA_MANAGED")
 }
 
 func mustID(t *testing.T, h *harness, login string) string {

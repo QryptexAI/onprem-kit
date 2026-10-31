@@ -32,6 +32,7 @@ type User struct {
 	Username        string
 	Email           string
 	Federated       bool   // password lives in a directory or an identity provider
+	Brokered        bool   // signs in THROUGH an identity provider: Keycloak never asks it for a password or code
 	Provider        string // what to call that place in an email
 	RequiredActions []string
 }
@@ -172,7 +173,7 @@ func (r Realm) complete(ctx context.Context, k kcUser) (User, error) {
 	}
 	_ = json.Unmarshal(out, &links)
 	if len(links) > 0 {
-		u.Federated, u.Provider = true, providerName(links[0].IdentityProvider)
+		u.Federated, u.Brokered, u.Provider = true, true, providerName(links[0].IdentityProvider)
 	}
 	return u, nil
 }

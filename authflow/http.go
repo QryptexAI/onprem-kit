@@ -162,12 +162,16 @@ func (h *Handlers) change(w http.ResponseWriter, r *http.Request, c Caller) {
 }
 
 func (h *Handlers) mfaStatus(w http.ResponseWriter, r *http.Request, c Caller) {
-	enabled, required, err := h.S.MFAStatus(r.Context(), c)
+	st, err := h.S.MFAStatus(r.Context(), c)
 	if err != nil {
 		h.answer(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"enabled": enabled, "required": required})
+	out := map[string]any{"enabled": st.Enabled, "required": st.Required}
+	if st.ManagedBy != "" {
+		out["managedBy"] = st.ManagedBy
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (h *Handlers) mfaBegin(w http.ResponseWriter, _ *http.Request, c Caller) {
@@ -271,6 +275,8 @@ func (h *Handlers) answer(w http.ResponseWriter, err error) {
 		writeErr(w, http.StatusBadRequest, "CODE_INVALID", "That code isn't right. Check the time on your phone and try again.")
 	case errors.Is(err, ErrMFAAlreadyOn):
 		writeErr(w, http.StatusConflict, "MFA_ON", "An authenticator app is already set up. Remove it first to set up a new one.")
+	case errors.Is(err, ErrMFAManaged):
+		writeErr(w, http.StatusConflict, "MFA_MANAGED", "You sign in through your identity provider. Set up two-step sign-in there.")
 	case errors.Is(err, ErrFederated):
 		writeErr(w, http.StatusConflict, "FEDERATED", "This account's password is managed by its directory or identity provider, not here.")
 	default:
