@@ -2,6 +2,7 @@ package authflow
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -228,5 +229,49 @@ func TestRequestReset_AsksReadyAtTheTime(t *testing.T) {
 	ready = true
 	if !svc.canMail() {
 		t.Fatal("still reports mail off after it was set up")
+	}
+}
+
+// No product ships a realm password policy, so the floor is the only thing between
+// a fresh install and a five-character password. It is checked before anything is
+// spent: Keycloak is never called (a sign-in check would use up the person's code)
+// and a reset link survives to be used with a longer password.
+func TestPasswordFloor_RefusesBeforeAnythingIsSpent(t *testing.T) {
+	ctx := context.Background()
+	calls := 0
+	kc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		http.Error(w, "unexpected", http.StatusTeapot)
+	}))
+	defer kc.Close()
+	realm := Realm{BaseURL: kc.URL, Name: "r", ClientID: "portal", HTTP: kc.Client(),
+		Token: func(context.Context) (string, error) { return "t", nil }}
+	tokens := NewMemTokens()
+	svc := NewService("PKI", tokens, func(context.Context, string, string, string) error { return nil })
+	_ = tokens.Save(ctx, ResetToken{Hash: HashResetToken("link"), Realm: "r", UserID: "u", Expires: time.Now().Add(time.Hour)})
+
+	short := "elevenchars" // 11
+	weak := func(name string, err error) {
+		t.Helper()
+		var pe *PolicyError
+		if !errors.As(err, &pe) || !strings.Contains(pe.Reason, "minimum length 12") {
+			t.Errorf("%s: got %v, want a minimum-length refusal", name, err)
+		}
+	}
+	weak("reset link", svc.CompleteReset(ctx, "link", short, "ip",
+		func(string) (Realm, bool) { return realm, true }, func(string) string { return "https://x" }))
+	weak("first login", svc.CompleteFirstLogin(ctx, realm, "a@b.test", "temp", "123456", short, "ip", "https://x"))
+	weak("change", svc.ChangePassword(ctx, Caller{Realm: realm, UserID: "u", Login: "a@b.test"}, "current", "123456", short, "ip", "https://x"))
+	weak("set", realm.SetPassword(ctx, "u", short, false))
+	if calls != 0 {
+		t.Errorf("Keycloak was called %d times for a password under the floor", calls)
+	}
+	if _, ok, _ := tokens.Take(ctx, HashResetToken("link")); !ok {
+		t.Error("a password under the floor used up the reset link")
+	}
+	// Twelve is enough: it gets as far as Keycloak.
+	_ = realm.SetPassword(ctx, "u", "twelve-chars", false)
+	if calls == 0 {
+		t.Error("a twelve-character password was refused before reaching Keycloak")
 	}
 }

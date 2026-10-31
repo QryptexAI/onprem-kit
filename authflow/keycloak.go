@@ -205,8 +205,12 @@ func (u User) pending(action string) bool {
 
 // SetPassword sets the user's password. temporary=true is an administrator's reset:
 // Keycloak adds the UPDATE_PASSWORD required action, which the portal's first-login
-// step completes. A policy refusal comes back as *PolicyError.
+// step completes. A policy refusal comes back as *PolicyError, and so does a
+// password under MinPasswordLength, which never reaches Keycloak.
 func (r Realm) SetPassword(ctx context.Context, id, password string, temporary bool) error {
+	if err := checkLength(password); err != nil {
+		return err
+	}
 	code, out, err := r.admin(ctx, http.MethodPut, "/users/"+url.PathEscape(id)+"/reset-password",
 		map[string]any{"type": "password", "value": password, "temporary": temporary})
 	if err != nil {

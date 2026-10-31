@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // Lifetimes agreed on 2026-10-30. A reset link is self-service, so it is short; a
@@ -16,6 +17,21 @@ const (
 	TempPasswordTTL = 72 * time.Hour
 	resetsPerHour   = 3
 )
+
+// MinPasswordLength is the floor under every password a person chooses. No product
+// ships a realm password policy, so without it a fresh install accepted a
+// five-character password at every step until an administrator set one (found
+// 2026-10-31). A realm policy can raise it, never lower it.
+const MinPasswordLength = 12
+
+// checkLength refuses a password under the floor, worded as Keycloak words its
+// own length refusal, so the person sees one message whichever rule caught it.
+func checkLength(password string) error {
+	if utf8.RuneCountInString(password) < MinPasswordLength {
+		return &PolicyError{Reason: fmt.Sprintf("Invalid password: minimum length %d.", MinPasswordLength)}
+	}
+	return nil
+}
 
 var (
 	ErrBadCredentials  = errors.New("the password or code is incorrect")
@@ -103,6 +119,10 @@ func (s *Service) RequestReset(ctx context.Context, realm Realm, email, portalUR
 // cleared too — choosing a password through the link satisfies it.
 func (s *Service) CompleteReset(ctx context.Context, raw, newPassword, ip string,
 	realmByName func(string) (Realm, bool), portalURL func(realm string) string) error {
+	// Before the link is taken, so a short password does not touch it.
+	if err := checkLength(newPassword); err != nil {
+		return err
+	}
 	t, ok, err := s.Tokens.Take(ctx, HashResetToken(strings.TrimSpace(raw)))
 	if err != nil {
 		return err
@@ -146,6 +166,10 @@ func (s *Service) CompleteReset(ctx context.Context, raw, newPassword, ip string
 // not remove it) is checked exactly as sign-in checks it; Keycloak's "not fully set
 // up" answer is the proof it was right.
 func (s *Service) CompleteFirstLogin(ctx context.Context, realm Realm, login, temp, code, newPassword, ip, portalURL string) error {
+	// Before the check below, which spends the person's code.
+	if err := checkLength(newPassword); err != nil {
+		return err
+	}
 	switch c, err := realm.CheckPassword(ctx, login, temp, code); {
 	case err != nil:
 		return err
@@ -195,6 +219,9 @@ type Caller struct {
 // password (and code) are checked the way sign-in checks them, then every OTHER
 // session is signed out; the one they made the change from carries on.
 func (s *Service) ChangePassword(ctx context.Context, c Caller, current, code, newPassword, ip, portalURL string) error {
+	if err := checkLength(newPassword); err != nil {
+		return err
+	}
 	switch chk, err := c.Realm.CheckPassword(ctx, c.Login, current, code); {
 	case err != nil:
 		return err
