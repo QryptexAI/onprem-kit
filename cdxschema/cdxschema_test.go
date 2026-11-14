@@ -15,7 +15,7 @@ import (
 func TestKitDocumentIsValid(t *testing.T) {
 	b := pqc.NewBOM(pqc.Tool{Vendor: "Qryptex", Name: "test", Version: "v0"}, time.Date(2026, 11, 15, 0, 0, 0, 0, time.UTC))
 	b.Metadata.Properties = []pqc.Property{{Name: "qryptex:coverage", Value: "1"}}
-	for _, name := range []string{"RSA-2048", "ECDSA-256", "mldsa65", "slhdsasha2128s", "p384_mldsa65", "X25519MLKEM768", "AES-256-GCM", "SHA-256", "MD5", "made-up-cipher"} {
+	for _, name := range []string{"RSA-2048", "ECDSA-256", "mldsa65", "slhdsasha2128s", "p384_mldsa65", "X25519MLKEM768", "AES-256-GCM", "SHA-256", "MD5", "chacha20-poly1305", "hmac-sha2-256", "curve25519-sha256", "made-up-cipher"} {
 		a, _ := pqc.Normalise(name)
 		c := pqc.NewComponent(a, []pqc.Function{pqc.Sign, pqc.Verify})
 		c.Properties = []pqc.Property{{Name: "qryptex:pqcRisk", Value: "HIGH"}}

@@ -132,7 +132,7 @@ var primitives = map[Family]string{
 	FamilyMLDSA: "signature", FamilySLHDSA: "signature",
 	FamilyAES: "block-cipher", FamilyLegacySym: "block-cipher",
 	FamilySHA1: "hash", FamilySHA2: "hash", FamilyMD5: "hash",
-	FamilyPRNG: "drbg",
+	FamilyPRNG: "drbg", FamilyChaCha20: "ae", FamilyHMAC: "mac",
 }
 
 // NewComponent builds a component from a normalised algorithm.
