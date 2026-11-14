@@ -39,6 +39,12 @@ arrangement already used for PKI's `pkg/auth` and `pkg/nodelock`.
   Appendix A §2 table, and — the actual point — `BOMRef`, the identity function
   both products call and neither implements. Types duplicate harmlessly;
   identity does not.
+- **`cbomfeed`** — the client PKI and QryptoScan use to enrol with CAMP and push
+  their CBOM to it.
+- **`pqcreport`** — the CBOM PDF report all three products render.
+- **`cdxschema`** — the official CycloneDX 1.6 JSON Schema (from the specification's
+  1.6.1 tag) and `Validate`. **Tests only**: each product validates the CBOM it
+  exports; nothing at runtime depends on it.
 
 `licence` and `trial` were documented here for some time and are not in this
 repository. The list above is what is actually present.
