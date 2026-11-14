@@ -119,7 +119,7 @@ type Occurrence struct {
 var primitives = map[Family]string{
 	FamilyRSA: "pke", FamilyEC: "key-agree", FamilyDH: "key-agree",
 	FamilyDSA: "signature", FamilyMQV: "key-agree",
-	FamilyMLKEM: "kem", FamilyHybridKEM: "kem",
+	FamilyMLKEM: "kem", FamilyHybridKEM: "kem", FamilyHybridSig: "signature",
 	FamilyMLDSA: "signature", FamilySLHDSA: "signature",
 	FamilyAES: "block-cipher", FamilyLegacySym: "block-cipher",
 	FamilySHA1: "hash", FamilySHA2: "hash", FamilyMD5: "hash",
