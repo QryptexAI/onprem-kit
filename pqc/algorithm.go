@@ -22,6 +22,10 @@ const (
 	// FamilyHybridKEM is a classical exchange combined with a PQC KEM. Every
 	// post-quantum group deployed in practice today is one of these.
 	FamilyHybridKEM Family = "hybrid-kem"
+	// FamilyHybridSig is a composite signature: a classical key and an ML-DSA
+	// key under one algorithm identifier, both signatures required. PKI issues
+	// these (the oqs-provider composites).
+	FamilyHybridSig Family = "hybrid-sig"
 	FamilyAES       Family = "aes"
 	FamilySHA1      Family = "sha1"
 	FamilySHA2      Family = "sha2"
@@ -102,6 +106,9 @@ var profiles = map[Family]Profile{
 	// broken, which is the whole argument for deploying one — App. A §3.
 	FamilyHybridKEM: {FamilyHybridKEM, PQCReady, []Function{KeyGen, Encapsulate, Decapsulate},
 		"", []string{"FIPS 203", "NIST IR 8547"}, true},
+	// The same argument for signatures: forging one needs both halves broken.
+	FamilyHybridSig: {FamilyHybridSig, PQCReady, []Function{KeyGen, Sign, Verify},
+		"", []string{"FIPS 204", "NIST IR 8547"}, true},
 
 	FamilyAES:  {FamilyAES, NotApplicable, []Function{Encrypt, Decrypt}, "", nil, false},
 	FamilySHA2: {FamilySHA2, NotApplicable, []Function{Digest}, "", nil, false},
@@ -165,21 +172,27 @@ var native = map[string]Algorithm{
 	"secp521r1":             {Family: FamilyEC, Parameter: "secp521r1"},
 	"x25519":                {Family: FamilyEC, Parameter: "x25519"},
 	"x448":                  {Family: FamilyEC, Parameter: "x448"},
-	"ffdhe2048":             {Family: FamilyDH, Parameter: "ffdhe2048"},
-	"ffdhe3072":             {Family: FamilyDH, Parameter: "ffdhe3072"},
-	"ffdhe4096":             {Family: FamilyDH, Parameter: "ffdhe4096"},
-	"3des":                  {Family: FamilyLegacySym, Parameter: "3des"},
-	"des":                   {Family: FamilyLegacySym, Parameter: "des"},
-	"rc4":                   {Family: FamilyLegacySym, Parameter: "rc4"},
-	"rc2":                   {Family: FamilyLegacySym, Parameter: "rc2"},
-	"blowfish":              {Family: FamilyLegacySym, Parameter: "blowfish"},
-	"aes":                   {Family: FamilyAES},
-	"sha-256":               {Family: FamilySHA2, Parameter: "sha256"},
-	"sha256":                {Family: FamilySHA2, Parameter: "sha256"},
-	"sha-384":               {Family: FamilySHA2, Parameter: "sha384"},
-	"sha384":                {Family: FamilySHA2, Parameter: "sha384"},
-	"sha-512":               {Family: FamilySHA2, Parameter: "sha512"},
-	"sha512":                {Family: FamilySHA2, Parameter: "sha512"},
+	// EdDSA. "Ed25519-256" is how CAMP's scanner has always named the key
+	// (Go's name and its size), so it is listed rather than split, which would
+	// make it "ec/256" and merge it with P-256.
+	"ed25519":     {Family: FamilyEC, Parameter: "ed25519"},
+	"ed25519-256": {Family: FamilyEC, Parameter: "ed25519"},
+	"ed448":       {Family: FamilyEC, Parameter: "ed448"},
+	"ffdhe2048":   {Family: FamilyDH, Parameter: "ffdhe2048"},
+	"ffdhe3072":   {Family: FamilyDH, Parameter: "ffdhe3072"},
+	"ffdhe4096":   {Family: FamilyDH, Parameter: "ffdhe4096"},
+	"3des":        {Family: FamilyLegacySym, Parameter: "3des"},
+	"des":         {Family: FamilyLegacySym, Parameter: "des"},
+	"rc4":         {Family: FamilyLegacySym, Parameter: "rc4"},
+	"rc2":         {Family: FamilyLegacySym, Parameter: "rc2"},
+	"blowfish":    {Family: FamilyLegacySym, Parameter: "blowfish"},
+	"aes":         {Family: FamilyAES},
+	"sha-256":     {Family: FamilySHA2, Parameter: "sha256"},
+	"sha256":      {Family: FamilySHA2, Parameter: "sha256"},
+	"sha-384":     {Family: FamilySHA2, Parameter: "sha384"},
+	"sha384":      {Family: FamilySHA2, Parameter: "sha384"},
+	"sha-512":     {Family: FamilySHA2, Parameter: "sha512"},
+	"sha512":      {Family: FamilySHA2, Parameter: "sha512"},
 
 	// The POST-QUANTUM standards, under their own spellings.
 	//
@@ -216,6 +229,11 @@ var native = map[string]Algorithm{
 	"slh-dsa-shake-192f": {Family: FamilySLHDSA, Parameter: "slhdsashake192f"},
 	"slh-dsa-shake-256s": {Family: FamilySLHDSA, Parameter: "slhdsashake256s"},
 	"slh-dsa-shake-256f": {Family: FamilySLHDSA, Parameter: "slhdsashake256f"},
+
+	// Composite signatures, by the oqs-provider names PKI generates them under.
+	"p256_mldsa44": {Family: FamilyHybridSig, Parameter: "p256mldsa44"},
+	"p384_mldsa65": {Family: FamilyHybridSig, Parameter: "p384mldsa65"},
+	"p521_mldsa87": {Family: FamilyHybridSig, Parameter: "p521mldsa87"},
 }
 
 // squashed indexes every entry with its separators removed, so one spelling of a
