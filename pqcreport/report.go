@@ -103,6 +103,10 @@ type Report struct {
 	NotAssessed []string
 	// Lists print after the algorithms, in order.
 	Lists []List
+	// Signature states who signed the bill of materials this report reads
+	// ("Signed by CN=camp.acme.test, sha256 ab12…") or why it is not signed.
+	// Printed in the footer; empty prints nothing.
+	Signature string
 }
 
 const (
@@ -341,6 +345,9 @@ func footer(pdf *fpdf.Fpdf, r Report) {
 		pdf.MultiCell(textW, 4.4, latin1(
 			"No cryptographic bill of materials was attached to this report, so there "+
 				"is no checksum to tie it to one."), "", "L", false)
+	}
+	if r.Signature != "" {
+		pdf.MultiCell(textW, 4.4, latin1(r.Signature), "", "L", false)
 	}
 	if r.Version != "" {
 		pdf.MultiCell(textW, 4.4, latin1("Produced by "+r.Product+" "+r.Version+"."), "", "L", false)

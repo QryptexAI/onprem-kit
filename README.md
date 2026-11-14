@@ -42,6 +42,9 @@ arrangement already used for PKI's `pkg/auth` and `pkg/nodelock`.
 - **`cbomfeed`** — the client PKI and QryptoScan use to enrol with CAMP and push
   their CBOM to it.
 - **`pqcreport`** — the CBOM PDF report all three products render.
+- **`cdxsign`** — signs and verifies a CycloneDX document with an enveloped JSF
+  signature over its RFC 8785 canonical form, carrying the signer's certificate
+  path. ECDSA, RSA (PS256) and Ed25519; other keys are refused, not invented a name.
 - **`cdxschema`** — the official CycloneDX 1.6 JSON Schema (from the specification's
   1.6.1 tag) and `Validate`. **Tests only**: each product validates the CBOM it
   exports; nothing at runtime depends on it.
