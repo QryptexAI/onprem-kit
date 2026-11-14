@@ -7,8 +7,8 @@ import "time"
 // NO CYCLONEDX LIBRARY. We only produce these documents, and producing one is a
 // struct with JSON tags — a shared kit should not push a dependency onto every
 // consumer for that. Conformance comes from validating output against the
-// official JSON Schema in CI, which is a test-time cost rather than a runtime
-// one. CAMP's aggregation has to PARSE, and a real parser may earn its place
+// official JSON Schema (package cdxschema) in each product's tests, which is a
+// test-time cost rather than a runtime one. CAMP's aggregation has to PARSE, and a real parser may earn its place
 // there; it has not earned it here.
 //
 // The subset is deliberate: fields nobody emits are fields nobody keeps
@@ -22,11 +22,13 @@ const (
 
 // BOM is one CycloneDX document.
 type BOM struct {
-	BOMFormat   string      `json:"bomFormat"`
-	SpecVersion string      `json:"specVersion"`
-	Version     int         `json:"version"`
-	Metadata    Metadata    `json:"metadata"`
-	Components  []Component `json:"components"`
+	BOMFormat   string   `json:"bomFormat"`
+	SpecVersion string   `json:"specVersion"`
+	Version     int      `json:"version"`
+	Metadata    Metadata `json:"metadata"`
+	// omitempty: the schema wants an array or nothing, and a document with no
+	// components marshalled a nil slice as null.
+	Components []Component `json:"components,omitempty"`
 }
 
 // NewBOM returns an empty document with the format fields set, so no caller has
@@ -112,7 +114,10 @@ type Occurrence struct {
 	// has no home for: the agility grade, the triage state, a waiver and its
 	// expiry. Agility belongs HERE and not on the component — "hardcoded but
 	// behind one internal wrapper" describes a call site, not RSA.
-	AdditionalContext []Property `json:"additionalContext,omitempty"`
+	//
+	// CycloneDX 1.6 makes this field a STRING, so it is written as one; see
+	// Context.
+	AdditionalContext Context `json:"additionalContext,omitempty"`
 }
 
 // primitives maps a family onto CycloneDX's primitive enum.
