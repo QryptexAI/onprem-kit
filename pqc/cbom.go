@@ -74,9 +74,13 @@ type Component struct {
 }
 
 type CryptoProperties struct {
-	AssetType string               `json:"assetType"`
-	AlgProps  *AlgorithmProperties `json:"algorithmProperties,omitempty"`
-	OID       string               `json:"oid,omitempty"`
+	// AssetType: algorithm, certificate, protocol or related-crypto-material.
+	AssetType     string                           `json:"assetType"`
+	AlgProps      *AlgorithmProperties             `json:"algorithmProperties,omitempty"`
+	CertProps     *CertificateProperties           `json:"certificateProperties,omitempty"`
+	MaterialProps *RelatedCryptoMaterialProperties `json:"relatedCryptoMaterialProperties,omitempty"`
+	ProtoProps    *ProtocolProperties              `json:"protocolProperties,omitempty"`
+	OID           string                           `json:"oid,omitempty"`
 }
 
 type AlgorithmProperties struct {

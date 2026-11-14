@@ -78,7 +78,31 @@ func CertificateKeyName(c *x509.Certificate) string {
 // key, which is its own component already. A post-quantum, EdDSA or composite
 // signature has no separate hash to name, so it is named as itself.
 func CertificateSignatureNames(c *x509.Certificate) []string {
-	switch c.SignatureAlgorithm {
+	if n := SignatureNamesForGoName(c.SignatureAlgorithm.String()); n != nil {
+		return n
+	}
+	oid := signatureOID(c.Raw)
+	if n, ok := oidNames[oid]; ok {
+		return []string{n}
+	}
+	if oid == "" {
+		return nil
+	}
+	return []string{"OID " + oid}
+}
+
+// SignatureNamesForGoName is CertificateSignatureNames for a classical signature
+// known only by Go's x509.SignatureAlgorithm.String() ("SHA256-RSA",
+// "ECDSA-SHA384"), which is what CAMP's probes record. Nil for anything else: a
+// post-quantum signature Go cannot name, which only the certificate itself can.
+func SignatureNamesForGoName(name string) []string {
+	var alg x509.SignatureAlgorithm
+	for _, a := range classicalSignatures {
+		if a.String() == name {
+			alg = a
+		}
+	}
+	switch alg {
 	case x509.MD5WithRSA:
 		return []string{"MD5"}
 	case x509.SHA1WithRSA, x509.ECDSAWithSHA1, x509.DSAWithSHA1:
@@ -89,15 +113,17 @@ func CertificateSignatureNames(c *x509.Certificate) []string {
 		return []string{"SHA-384"}
 	case x509.SHA512WithRSA, x509.SHA512WithRSAPSS, x509.ECDSAWithSHA512:
 		return []string{"SHA-512"}
+	case x509.PureEd25519:
+		return []string{"Ed25519"}
 	}
-	oid := signatureOID(c.Raw)
-	if n, ok := oidNames[oid]; ok {
-		return []string{n}
-	}
-	if oid == "" {
-		return nil
-	}
-	return []string{"OID " + oid}
+	return nil
+}
+
+var classicalSignatures = []x509.SignatureAlgorithm{
+	x509.MD5WithRSA, x509.SHA1WithRSA, x509.ECDSAWithSHA1, x509.DSAWithSHA1,
+	x509.SHA256WithRSA, x509.SHA256WithRSAPSS, x509.ECDSAWithSHA256, x509.DSAWithSHA256,
+	x509.SHA384WithRSA, x509.SHA384WithRSAPSS, x509.ECDSAWithSHA384,
+	x509.SHA512WithRSA, x509.SHA512WithRSAPSS, x509.ECDSAWithSHA512, x509.PureEd25519,
 }
 
 func spkiOID(raw []byte) string {

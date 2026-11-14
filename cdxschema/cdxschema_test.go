@@ -31,6 +31,28 @@ func TestKitDocumentIsValid(t *testing.T) {
 	}
 }
 
+// Certificates, keys and protocols, as products emit them, are valid too.
+func TestAssetDocumentIsValid(t *testing.T) {
+	now := time.Date(2026, 11, 15, 0, 0, 0, 0, time.UTC)
+	b := pqc.NewBOM(pqc.Tool{Name: "test"}, now)
+	f := pqc.CertificateFacts{Subject: "CN=www.acme.test", IssuerCN: "Acme Issuing", Issuer: "CN=Acme Issuing,O=Acme",
+		Serial: "123456789", NotBefore: now, NotAfter: now.AddDate(1, 0, 0), KeyName: "RSA-2048", KeyBits: 2048,
+		SignatureName: "SHA-256", Fingerprint: strings.Repeat("ab", 32), SPKI: strings.Repeat("cd", 32)}
+	cert := pqc.NewCertificateComponent(f)
+	cert.Evidence = &pqc.Evidence{Occurrences: []pqc.Occurrence{{Location: "10.0.0.5:443"}}}
+	b.Components = append(b.Components, cert, *pqc.NewPublicKeyComponent(f))
+	exp := now.AddDate(2, 0, 0)
+	b.Components = append(b.Components, pqc.NewManagedKeyComponent(pqc.ManagedKey{Namespace: "kms", ID: "k-1", Name: "payments",
+		Type: "private-key", State: pqc.KeyState("ACTIVE"), Algorithm: "mldsa65", Created: now, Expires: &exp}))
+	b.Components = append(b.Components, pqc.NewProtocolComponent("tls", "TLSv1.3",
+		[]pqc.CipherSuite{{Name: "TLS_AES_128_GCM_SHA256", Algorithms: []string{"crypto/aes/128"}, Identifiers: []string{"0x13,0x01"}}},
+		[]string{pqc.AlgorithmRefFor("X25519MLKEM768")}))
+	doc, _ := json.Marshal(b)
+	if err := Validate(doc); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestEmptyDocumentIsValid(t *testing.T) {
 	doc, _ := json.Marshal(pqc.NewBOM(pqc.Tool{Name: "test"}, time.Now()))
 	if err := Validate(doc); err != nil {
