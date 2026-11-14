@@ -292,17 +292,17 @@ func NewManagedKeyComponent(k ManagedKey) Component {
 // unrecognised is left empty rather than guessed.
 func KeyState(status string) string {
 	switch strings.ToUpper(strings.TrimSpace(status)) {
-	case "PENDING", "PRE_ACTIVATION", "CREATED":
+	case "PENDING", "PRE_ACTIVATION", "CREATED", "PENDING_APPROVAL":
 		return "pre-activation"
-	case "ACTIVE", "ENABLED":
+	case "ACTIVE", "ENABLED", "ROTATING":
 		return "active"
 	case "SUSPENDED", "DISABLED":
 		return "suspended"
-	case "DEACTIVATED", "RETIRED", "ROTATED", "EXPIRED":
+	case "DEACTIVATED", "RETIRED", "ROTATED", "EXPIRED", "ARCHIVED", "PENDING_DESTROY":
 		return "deactivated"
 	case "COMPROMISED":
 		return "compromised"
-	case "DESTROYED", "DELETED", "PENDING_DELETION":
+	case "DESTROYED", "DELETED", "LOST":
 		return "destroyed"
 	}
 	return ""

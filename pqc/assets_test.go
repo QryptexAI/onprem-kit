@@ -116,3 +116,22 @@ func prop(c Component, name string) string {
 	}
 	return ""
 }
+
+// One curve, one component, whoever names it: a certificate key ("ECDSA-256"),
+// a negotiated group ("secp256r1"), KMS ("ECDSA_P256"), OpenSSL ("prime256v1").
+func TestEveryNameForACurveIsOneComponent(t *testing.T) {
+	for want, names := range map[string][]string{
+		"crypto/ec/secp256r1": {"ECDSA-256", "secp256r1", "ECDSA_P256", "prime256v1", "P-256", "EC-256"},
+		"crypto/ec/secp384r1": {"ECDSA-384", "secp384r1", "ECDSA_P384", "P-384"},
+		"crypto/ec/secp521r1": {"ECDSA-521", "secp521r1", "P-521"},
+	} {
+		for _, n := range names {
+			if got := AlgorithmRefFor(n); got != want {
+				t.Errorf("%s -> %s, want %s", n, got, want)
+			}
+		}
+	}
+	if AlgorithmRefFor("EC") != "crypto/ec" || AlgorithmRefFor("x25519") != "crypto/ec/x25519" {
+		t.Errorf("EC %s, x25519 %s", AlgorithmRefFor("EC"), AlgorithmRefFor("x25519"))
+	}
+}

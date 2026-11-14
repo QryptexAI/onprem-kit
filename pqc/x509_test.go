@@ -74,8 +74,8 @@ func TestClassicalNamesMatchCAMP(t *testing.T) {
 		ref    string
 	}{
 		{rsaKey, x509.SHA256WithRSA, "RSA-2048", []string{"SHA-256"}, "crypto/rsa/2048"},
-		{p256, x509.ECDSAWithSHA256, "ECDSA-256", []string{"SHA-256"}, "crypto/ec/256"},
-		{p384, x509.ECDSAWithSHA384, "ECDSA-384", []string{"SHA-384"}, "crypto/ec/384"},
+		{p256, x509.ECDSAWithSHA256, "ECDSA-256", []string{"SHA-256"}, "crypto/ec/secp256r1"},
+		{p384, x509.ECDSAWithSHA384, "ECDSA-384", []string{"SHA-384"}, "crypto/ec/secp384r1"},
 		{edKey, x509.PureEd25519, "Ed25519-256", []string{"Ed25519"}, "crypto/ec/ed25519"},
 	}
 	for _, c := range cases {

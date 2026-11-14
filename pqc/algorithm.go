@@ -139,6 +139,7 @@ var native = map[string]Algorithm{
 	// QryptoScan rule labels (qs-algorithm) — family labels, no parameter.
 	"rsa":   {Family: FamilyRSA},
 	"ecc":   {Family: FamilyEC},
+	"ec":    {Family: FamilyEC},
 	"ecdsa": {Family: FamilyEC},
 	"ecdh":  {Family: FamilyEC},
 	"dh":    {Family: FamilyDH},
@@ -170,8 +171,17 @@ var native = map[string]Algorithm{
 	"secp256r1":             {Family: FamilyEC, Parameter: "secp256r1"},
 	"secp384r1":             {Family: FamilyEC, Parameter: "secp384r1"},
 	"secp521r1":             {Family: FamilyEC, Parameter: "secp521r1"},
-	"x25519":                {Family: FamilyEC, Parameter: "x25519"},
-	"x448":                  {Family: FamilyEC, Parameter: "x448"},
+	// The other names for the NIST curves (OpenSSL, NIST, SSH). BOMRef gives them
+	// all the secp name; see canonicalCurve.
+	"prime256v1": {Family: FamilyEC, Parameter: "secp256r1"},
+	"p256":       {Family: FamilyEC, Parameter: "secp256r1"},
+	"p384":       {Family: FamilyEC, Parameter: "secp384r1"},
+	"p521":       {Family: FamilyEC, Parameter: "secp521r1"},
+	"nistp256":   {Family: FamilyEC, Parameter: "secp256r1"},
+	"nistp384":   {Family: FamilyEC, Parameter: "secp384r1"},
+	"nistp521":   {Family: FamilyEC, Parameter: "secp521r1"},
+	"x25519":     {Family: FamilyEC, Parameter: "x25519"},
+	"x448":       {Family: FamilyEC, Parameter: "x448"},
 	// EdDSA. "Ed25519-256" is how CAMP's scanner has always named the key
 	// (Go's name and its size), so it is listed rather than split, which would
 	// make it "ec/256" and merge it with P-256.
