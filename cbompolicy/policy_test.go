@@ -1,6 +1,7 @@
 package cbompolicy
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -246,5 +247,40 @@ func TestValidate(t *testing.T) {
 		if err := r.Validate(); err != nil {
 			t.Errorf("%s: %v", name, err)
 		}
+	}
+}
+
+// An issuance check refuses on the key, on the CA that would sign, and on the
+// lifetime, with the same rules a CBOM evaluation uses.
+func TestCheck(t *testing.T) {
+	noRSA := rule(Deny, Subject{Algorithm: "RSA"}, past)
+	size := rule(MinKeySize, Subject{Algorithm: "EC"}, past)
+	size.Bits = 384
+	life := rule(MaxLifetime, Subject{}, past)
+	life.Days = 398
+	later := rule(Deny, Subject{Risk: "QUANTUM_BROKEN"}, y30)
+	rules := []Rule{noRSA, size, life, later}
+
+	where := func(c Candidate) []string {
+		var out []string
+		for _, v := range Check(rules, c, now).Failing() {
+			out = append(out, v.Location+"/"+string(v.Kind))
+		}
+		return out
+	}
+	ok := Candidate{KeyAlgorithm: "ECDSA-384", IssuerKeyAlgorithm: "mldsa65", Lifetime: 90 * 24 * time.Hour}
+	if got := where(ok); len(got) != 0 {
+		t.Errorf("compliant candidate refused: %v", got)
+	}
+	bad := Candidate{KeyAlgorithm: "RSA-2048", IssuerKeyAlgorithm: "ECDSA-256", Lifetime: 825 * 24 * time.Hour}
+	got := where(bad)
+	slices.Sort(got)
+	if want := []string{"certificate/MAX_LIFETIME", "issuer/MIN_KEY_SIZE", "key/DENY"}; !slices.Equal(got, want) {
+		t.Errorf("refusals = %v, want %v", got, want)
+	}
+	// The 2030 rule is reported but does not refuse yet.
+	res := Check(rules, Candidate{KeyAlgorithm: "ECDSA-384"}, now)
+	if len(res.Failing()) != 0 || len(res.Violations) != 1 || res.Violations[0].InForce {
+		t.Errorf("upcoming: %+v", res.Violations)
 	}
 }
