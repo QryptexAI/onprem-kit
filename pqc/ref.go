@@ -36,7 +36,11 @@ func BOMRef(a Algorithm) string {
 	b := strings.Builder{}
 	b.WriteString("crypto/")
 	b.WriteString(fam)
-	if p := normaliseParam(a.Parameter); p != "" {
+	p := normaliseParam(a.Parameter)
+	if a.Family == FamilyEC {
+		p = canonicalCurve(p)
+	}
+	if p != "" {
 		b.WriteString("/")
 		b.WriteString(p)
 	} else if a.Family == FamilyUnknown && a.Native != "" {
@@ -68,3 +72,26 @@ func normaliseParam(s string) string {
 // Provided so the answer is not re-derived — and re-derived differently — at
 // each call site. It is exactly BOMRef equality, which is the definition.
 func SameComponent(a, b Algorithm) bool { return BOMRef(a) == BOMRef(b) }
+
+// canonicalCurve gives each NIST curve one name, the SECG one CAMP sees on the
+// wire. Before v0.6.0 the same curve was three components: "ECDSA-256" from a
+// certificate key (crypto/ec/256), "secp256r1" from a negotiated group and
+// "ECDSA_P256" from KMS (crypto/ec/p256).
+//
+// A bare size is a NIST curve because it comes from Go's certificate key name
+// (CertificateKeyName, and CAMP's "<alg>-<bits>"), and Go's ECDSA implements
+// only the NIST curves. Brainpool and the other curves carry their own names and
+// are left alone.
+func canonicalCurve(p string) string {
+	switch p {
+	case "224", "p224", "secp224r1", "nistp224":
+		return "secp224r1"
+	case "256", "p256", "secp256r1", "prime256v1", "nistp256":
+		return "secp256r1"
+	case "384", "p384", "secp384r1", "nistp384":
+		return "secp384r1"
+	case "521", "p521", "secp521r1", "nistp521":
+		return "secp521r1"
+	}
+	return p
+}

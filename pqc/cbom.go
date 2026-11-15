@@ -74,9 +74,13 @@ type Component struct {
 }
 
 type CryptoProperties struct {
-	AssetType string               `json:"assetType"`
-	AlgProps  *AlgorithmProperties `json:"algorithmProperties,omitempty"`
-	OID       string               `json:"oid,omitempty"`
+	// AssetType: algorithm, certificate, protocol or related-crypto-material.
+	AssetType     string                           `json:"assetType"`
+	AlgProps      *AlgorithmProperties             `json:"algorithmProperties,omitempty"`
+	CertProps     *CertificateProperties           `json:"certificateProperties,omitempty"`
+	MaterialProps *RelatedCryptoMaterialProperties `json:"relatedCryptoMaterialProperties,omitempty"`
+	ProtoProps    *ProtocolProperties              `json:"protocolProperties,omitempty"`
+	OID           string                           `json:"oid,omitempty"`
 }
 
 type AlgorithmProperties struct {
@@ -128,7 +132,7 @@ var primitives = map[Family]string{
 	FamilyMLDSA: "signature", FamilySLHDSA: "signature",
 	FamilyAES: "block-cipher", FamilyLegacySym: "block-cipher",
 	FamilySHA1: "hash", FamilySHA2: "hash", FamilyMD5: "hash",
-	FamilyPRNG: "drbg",
+	FamilyPRNG: "drbg", FamilyChaCha20: "ae", FamilyHMAC: "mac",
 }
 
 // NewComponent builds a component from a normalised algorithm.

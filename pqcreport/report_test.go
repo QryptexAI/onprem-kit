@@ -127,3 +127,17 @@ func TestItemisedOccurrencesAreRendered(t *testing.T) {
 		t.Errorf("itemised report (%d bytes) is not larger than the consolidated one (%d)", buf.Len(), plain.Len())
 	}
 }
+
+func TestListsAreRendered(t *testing.T) {
+	r := sample()
+	r.Lists = []List{{Title: "Certificates", Intro: "Every certificate.", Items: []string{"CN=a  RSA-2048", "CN=b  mldsa65"}, More: 3},
+		{Title: "Nothing here"}}
+	var buf, plain bytes.Buffer
+	if err := Render(&buf, r); err != nil {
+		t.Fatal(err)
+	}
+	_ = Render(&plain, sample())
+	if buf.Len() <= plain.Len() {
+		t.Errorf("a report with lists (%d bytes) is not larger than one without (%d)", buf.Len(), plain.Len())
+	}
+}

@@ -73,6 +73,16 @@ type Exception struct {
 	Expires       time.Time
 }
 
+// List is a titled list the report prints after the algorithms: the
+// certificates, keys or protocols behind them. More counts items left out of
+// Items, and is printed, so a long list that was cut says so.
+type List struct {
+	Title string
+	Intro string
+	Items []string
+	More  int
+}
+
 // Report is everything the document says.
 type Report struct {
 	Product   string
@@ -91,6 +101,8 @@ type Report struct {
 	Worst       []string
 	Exceptions  []Exception
 	NotAssessed []string
+	// Lists print after the algorithms, in order.
+	Lists []List
 }
 
 const (
@@ -128,6 +140,10 @@ func Render(w io.Writer, r Report) error {
 		body(pdf, "Every place each algorithm was observed. The table above is the "+
 			"count; this is the list.")
 		itemised(pdf, r.Algorithms)
+	}
+
+	for _, l := range r.Lists {
+		list(pdf, l)
 	}
 
 	section(pdf, "Accepted risk and incapability")
@@ -266,6 +282,26 @@ func itemised(pdf *fpdf.Fpdf, as []Algorithm) {
 			pdf.MultiCell(textW-6, 4.2, latin1("   "+sight), "", "L", false)
 		}
 		pdf.SetFont("Helvetica", "", 10)
+	}
+	pdf.Ln(2)
+}
+
+func list(pdf *fpdf.Fpdf, l List) {
+	section(pdf, l.Title)
+	if l.Intro != "" {
+		body(pdf, l.Intro)
+	}
+	if len(l.Items) == 0 && l.More == 0 {
+		body(pdf, "None.")
+		return
+	}
+	pdf.SetFont("Courier", "", 8.5)
+	for _, it := range l.Items {
+		pdf.MultiCell(textW, 4.2, latin1(it), "", "L", false)
+	}
+	pdf.SetFont("Helvetica", "", 10)
+	if l.More > 0 {
+		body(pdf, fmt.Sprintf("... and %d more, in the bill of materials.", l.More))
 	}
 	pdf.Ln(2)
 }

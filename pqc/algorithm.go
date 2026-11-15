@@ -32,6 +32,11 @@ const (
 	FamilyMD5       Family = "md5"
 	FamilyLegacySym Family = "legacy-symmetric" // DES, 3DES, RC4, Blowfish
 	FamilyPRNG      Family = "prng"
+	// FamilyChaCha20 is ChaCha20-Poly1305, the other TLS 1.3 and SSH cipher.
+	FamilyChaCha20 Family = "chacha20"
+	// FamilyHMAC is a keyed hash; the parameter is the hash. Its strength is the
+	// hash's, and Grover does not break it.
+	FamilyHMAC Family = "hmac"
 	// FamilyUnknown is what a native name that is not in the table becomes.
 	// It is a real component, not an error — see Assess.
 	FamilyUnknown Family = "unknown"
@@ -118,6 +123,9 @@ var profiles = map[Family]Profile{
 	FamilyLegacySym: {FamilyLegacySym, NotApplicable, []Function{Encrypt, Decrypt},
 		"", nil, false},
 	FamilyPRNG: {FamilyPRNG, NotApplicable, []Function{Other}, "", nil, false},
+	FamilyChaCha20: {FamilyChaCha20, NotApplicable, []Function{Encrypt, Decrypt, Tag},
+		"", []string{"RFC 8439"}, false},
+	FamilyHMAC: {FamilyHMAC, NotApplicable, []Function{Tag}, "", []string{"FIPS 198-1"}, false},
 }
 
 // ProfileFor returns what is known about a family.
@@ -139,6 +147,7 @@ var native = map[string]Algorithm{
 	// QryptoScan rule labels (qs-algorithm) — family labels, no parameter.
 	"rsa":   {Family: FamilyRSA},
 	"ecc":   {Family: FamilyEC},
+	"ec":    {Family: FamilyEC},
 	"ecdsa": {Family: FamilyEC},
 	"ecdh":  {Family: FamilyEC},
 	"dh":    {Family: FamilyDH},
@@ -150,7 +159,61 @@ var native = map[string]Algorithm{
 	// AES-ECB names a mode, not a key size. The mode is the finding and the
 	// family is the component; the mode travels as a property.
 	"aes-ecb": {Family: FamilyAES},
-	"prng":    {Family: FamilyPRNG},
+	"ecdhe":   {Family: FamilyEC},
+	"dhe":     {Family: FamilyDH},
+
+	// ChaCha20-Poly1305, as TLS and SSH name it.
+	"chacha20poly1305":              {Family: FamilyChaCha20},
+	"chacha20-poly1305":             {Family: FamilyChaCha20},
+	"chacha20-poly1305@openssh.com": {Family: FamilyChaCha20},
+
+	// SSH's own names (RFC 4253, 5656, 8731, 9142 and OpenSSH's), mapped onto the
+	// components TLS and certificates already use, so one curve or one hybrid is one
+	// component whichever protocol carries it.
+	"curve25519-sha256":                    {Family: FamilyEC, Parameter: "x25519"},
+	"curve25519-sha256@libssh.org":         {Family: FamilyEC, Parameter: "x25519"},
+	"ecdh-sha2-nistp256":                   {Family: FamilyEC, Parameter: "secp256r1"},
+	"ecdh-sha2-nistp384":                   {Family: FamilyEC, Parameter: "secp384r1"},
+	"ecdh-sha2-nistp521":                   {Family: FamilyEC, Parameter: "secp521r1"},
+	"diffie-hellman-group1-sha1":           {Family: FamilyDH, Parameter: "modp1024"},
+	"diffie-hellman-group14-sha1":          {Family: FamilyDH, Parameter: "modp2048"},
+	"diffie-hellman-group14-sha256":        {Family: FamilyDH, Parameter: "modp2048"},
+	"diffie-hellman-group16-sha512":        {Family: FamilyDH, Parameter: "modp4096"},
+	"diffie-hellman-group18-sha512":        {Family: FamilyDH, Parameter: "modp8192"},
+	"diffie-hellman-group-exchange-sha1":   {Family: FamilyDH},
+	"diffie-hellman-group-exchange-sha256": {Family: FamilyDH},
+	"mlkem768x25519-sha256":                {Family: FamilyHybridKEM, Parameter: "x25519mlkem768"},
+	"sntrup761x25519-sha512":               {Family: FamilyHybridKEM, Parameter: "sntrup761x25519"},
+	"sntrup761x25519-sha512@openssh.com":   {Family: FamilyHybridKEM, Parameter: "sntrup761x25519"},
+	"ssh-ed25519":                          {Family: FamilyEC, Parameter: "ed25519"},
+	"ssh-ed448":                            {Family: FamilyEC, Parameter: "ed448"},
+	"ssh-rsa":                              {Family: FamilyRSA},
+	"rsa-sha2-256":                         {Family: FamilyRSA},
+	"rsa-sha2-512":                         {Family: FamilyRSA},
+	"ssh-dss":                              {Family: FamilyDSA},
+	"ecdsa-sha2-nistp256":                  {Family: FamilyEC, Parameter: "secp256r1"},
+	"ecdsa-sha2-nistp384":                  {Family: FamilyEC, Parameter: "secp384r1"},
+	"ecdsa-sha2-nistp521":                  {Family: FamilyEC, Parameter: "secp521r1"},
+	"aes128-ctr":                           {Family: FamilyAES, Parameter: "128"},
+	"aes192-ctr":                           {Family: FamilyAES, Parameter: "192"},
+	"aes256-ctr":                           {Family: FamilyAES, Parameter: "256"},
+	"aes128-gcm@openssh.com":               {Family: FamilyAES, Parameter: "128"},
+	"aes256-gcm@openssh.com":               {Family: FamilyAES, Parameter: "256"},
+	"aes128-cbc":                           {Family: FamilyAES, Parameter: "128"},
+	"aes256-cbc":                           {Family: FamilyAES, Parameter: "256"},
+	"3des-cbc":                             {Family: FamilyLegacySym, Parameter: "3des"},
+	"hmac-sha1":                            {Family: FamilyHMAC, Parameter: "sha1"},
+	"hmac-sha1-etm@openssh.com":            {Family: FamilyHMAC, Parameter: "sha1"},
+	"hmac-sha2-256":                        {Family: FamilyHMAC, Parameter: "sha256"},
+	"hmac-sha2-256-etm@openssh.com":        {Family: FamilyHMAC, Parameter: "sha256"},
+	"hmac-sha2-512":                        {Family: FamilyHMAC, Parameter: "sha512"},
+	"hmac-sha2-512-etm@openssh.com":        {Family: FamilyHMAC, Parameter: "sha512"},
+	"hmac-md5":                             {Family: FamilyHMAC, Parameter: "md5"},
+	"umac-64@openssh.com":                  {Family: FamilyHMAC, Parameter: "umac64"},
+	"umac-128@openssh.com":                 {Family: FamilyHMAC, Parameter: "umac128"},
+	"umac-64-etm@openssh.com":              {Family: FamilyHMAC, Parameter: "umac64"},
+	"umac-128-etm@openssh.com":             {Family: FamilyHMAC, Parameter: "umac128"},
+	"prng":                                 {Family: FamilyPRNG},
 	// Still compound in the pack: splitting it needs per-algorithm-per-language
 	// rules, because a rule naming an algorithm in a string cannot span
 	// languages. It normalises to the family with no parameter — which is
@@ -170,8 +233,17 @@ var native = map[string]Algorithm{
 	"secp256r1":             {Family: FamilyEC, Parameter: "secp256r1"},
 	"secp384r1":             {Family: FamilyEC, Parameter: "secp384r1"},
 	"secp521r1":             {Family: FamilyEC, Parameter: "secp521r1"},
-	"x25519":                {Family: FamilyEC, Parameter: "x25519"},
-	"x448":                  {Family: FamilyEC, Parameter: "x448"},
+	// The other names for the NIST curves (OpenSSL, NIST, SSH). BOMRef gives them
+	// all the secp name; see canonicalCurve.
+	"prime256v1": {Family: FamilyEC, Parameter: "secp256r1"},
+	"p256":       {Family: FamilyEC, Parameter: "secp256r1"},
+	"p384":       {Family: FamilyEC, Parameter: "secp384r1"},
+	"p521":       {Family: FamilyEC, Parameter: "secp521r1"},
+	"nistp256":   {Family: FamilyEC, Parameter: "secp256r1"},
+	"nistp384":   {Family: FamilyEC, Parameter: "secp384r1"},
+	"nistp521":   {Family: FamilyEC, Parameter: "secp521r1"},
+	"x25519":     {Family: FamilyEC, Parameter: "x25519"},
+	"x448":       {Family: FamilyEC, Parameter: "x448"},
 	// EdDSA. "Ed25519-256" is how CAMP's scanner has always named the key
 	// (Go's name and its size), so it is listed rather than split, which would
 	// make it "ec/256" and merge it with P-256.
