@@ -45,6 +45,10 @@ arrangement already used for PKI's `pkg/auth` and `pkg/nodelock`.
 - **`cdxsign`** — signs and verifies a CycloneDX document with an enveloped JSF
   signature over its RFC 8785 canonical form, carrying the signer's certificate
   path. ECDSA, RSA (PS256) and Ed25519; other keys are refused, not invented a name.
+- **`cbompolicy`** — the crypto policy model the three products share: dated rules
+  (deny an algorithm or risk class, a minimum key size, a maximum certificate
+  lifetime) as table rows, and `Evaluate` over a CBOM. Subjects resolve through
+  `pqc`, so "RSA" or "QUANTUM_BROKEN" means the same in every product.
 - **`cdxschema`** — the official CycloneDX 1.6 JSON Schema (from the specification's
   1.6.1 tag) and `Validate`. **Tests only**: each product validates the CBOM it
   exports; nothing at runtime depends on it.
