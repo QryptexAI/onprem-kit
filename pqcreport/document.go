@@ -3,6 +3,7 @@ package pqcreport
 import (
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/go-pdf/fpdf"
@@ -109,21 +110,52 @@ func table(pdf *fpdf.Fpdf, rows [][]string) {
 		return
 	}
 	pdf.SetFont("Helvetica", "", 8.5)
+	// Measured in the font each row prints in: the header is bold, and a bold
+	// word measured in the regular face wrapped mid-word ("Component / s").
+	font := func(row int) {
+		if row == 0 {
+			pdf.SetFont("Helvetica", "B", 8.5)
+		} else {
+			pdf.SetFont("Helvetica", "", 8.5)
+		}
+	}
 	widths := make([]float64, cols)
-	for _, r := range rows {
+	for n, r := range rows {
+		font(n)
 		for i, c := range r {
 			if w := pdf.GetStringWidth(latin1(c)) + 3; w > widths[i] {
 				widths[i] = w
 			}
 		}
 	}
-	total := 0.0
-	for _, w := range widths {
+	// A column is never narrower than its longest word, so wrapping happens
+	// between words.
+	minW := make([]float64, cols)
+	for n, r := range rows {
+		font(n)
+		for i, c := range r {
+			for _, word := range strings.Fields(latin1(c)) {
+				if w := pdf.GetStringWidth(word) + 3; w > minW[i] {
+					minW[i] = w
+				}
+			}
+		}
+	}
+	total, floor := 0.0, 0.0
+	for i, w := range widths {
 		total += w
+		floor += minW[i]
 	}
 	if total > textW {
+		// Share out what is left above the floors in proportion to what each
+		// column wanted beyond its longest word.
+		spare, extra := textW-floor, total-floor
 		for i := range widths {
-			widths[i] = widths[i] * textW / total
+			if spare <= 0 || extra <= 0 {
+				widths[i] = minW[i]
+				continue
+			}
+			widths[i] = minW[i] + (widths[i]-minW[i])*spare/extra
 		}
 	}
 	for n, r := range rows {

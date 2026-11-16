@@ -24,3 +24,11 @@ func TestRenderDocument(t *testing.T) {
 		t.Fatalf("not a PDF: %d bytes", buf.Len())
 	}
 }
+
+// Latin-1 characters are written as ONE byte, the encoding of the core fonts.
+func TestLatin1SingleByte(t *testing.T) {
+	got := latin1("App. B §2, Amélie — ok")
+	if got != "App. B \xa72, Am\xe9lie - ok" {
+		t.Fatalf("%q", got)
+	}
+}
