@@ -91,9 +91,10 @@ func TestTypographyIsTransliterated(t *testing.T) {
 	}
 }
 
-// Accented Latin survives, because cp1252 has it. A name is worth keeping.
+// Accented Latin survives, because cp1252 has it. A name is worth keeping. It is
+// written as cp1252's single byte (0xE9); the UTF-8 pair printed as "AmÃ©lie".
 func TestAccentedLatinSurvives(t *testing.T) {
-	if got := latin1("Amélie Moreau"); got != "Amélie Moreau" {
+	if got := latin1("Amélie Moreau"); got != "Am\xe9lie Moreau" {
 		t.Errorf("latin1 mangled an accented name: %q", got)
 	}
 }

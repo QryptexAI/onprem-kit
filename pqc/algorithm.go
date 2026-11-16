@@ -302,7 +302,28 @@ var native = map[string]Algorithm{
 	"slh-dsa-shake-256s": {Family: FamilySLHDSA, Parameter: "slhdsashake256s"},
 	"slh-dsa-shake-256f": {Family: FamilySLHDSA, Parameter: "slhdsashake256f"},
 
-	// Composite signatures, by the oqs-provider names PKI generates them under.
+	// Composite signatures, RFC 10073: the algorithm names without "id-".
+	"mldsa44-rsa2048-pss-sha256":           {Family: FamilyHybridSig, Parameter: "mldsa44rsa2048psssha256"},
+	"mldsa44-rsa2048-pkcs15-sha256":        {Family: FamilyHybridSig, Parameter: "mldsa44rsa2048pkcs15sha256"},
+	"mldsa44-ed25519-sha512":               {Family: FamilyHybridSig, Parameter: "mldsa44ed25519sha512"},
+	"mldsa44-ecdsa-p256-sha256":            {Family: FamilyHybridSig, Parameter: "mldsa44ecdsap256sha256"},
+	"mldsa65-rsa3072-pss-sha512":           {Family: FamilyHybridSig, Parameter: "mldsa65rsa3072psssha512"},
+	"mldsa65-rsa3072-pkcs15-sha512":        {Family: FamilyHybridSig, Parameter: "mldsa65rsa3072pkcs15sha512"},
+	"mldsa65-rsa4096-pss-sha512":           {Family: FamilyHybridSig, Parameter: "mldsa65rsa4096psssha512"},
+	"mldsa65-rsa4096-pkcs15-sha512":        {Family: FamilyHybridSig, Parameter: "mldsa65rsa4096pkcs15sha512"},
+	"mldsa65-ecdsa-p256-sha512":            {Family: FamilyHybridSig, Parameter: "mldsa65ecdsap256sha512"},
+	"mldsa65-ecdsa-p384-sha512":            {Family: FamilyHybridSig, Parameter: "mldsa65ecdsap384sha512"},
+	"mldsa65-ecdsa-brainpoolp256r1-sha512": {Family: FamilyHybridSig, Parameter: "mldsa65ecdsabrainpoolp256r1sha512"},
+	"mldsa65-ed25519-sha512":               {Family: FamilyHybridSig, Parameter: "mldsa65ed25519sha512"},
+	"mldsa87-ecdsa-p384-sha512":            {Family: FamilyHybridSig, Parameter: "mldsa87ecdsap384sha512"},
+	"mldsa87-ecdsa-brainpoolp384r1-sha512": {Family: FamilyHybridSig, Parameter: "mldsa87ecdsabrainpoolp384r1sha512"},
+	"mldsa87-ed448-shake256":               {Family: FamilyHybridSig, Parameter: "mldsa87ed448shake256"},
+	"mldsa87-rsa3072-pss-sha512":           {Family: FamilyHybridSig, Parameter: "mldsa87rsa3072psssha512"},
+	"mldsa87-rsa4096-pss-sha512":           {Family: FamilyHybridSig, Parameter: "mldsa87rsa4096psssha512"},
+	"mldsa87-ecdsa-p521-sha512":            {Family: FamilyHybridSig, Parameter: "mldsa87ecdsap521sha512"},
+
+	// Composite signatures, by the oqs-provider names PKI generated them under
+	// before RFC 10073. Same family: a pre-standard hybrid is still a hybrid.
 	"p256_mldsa44": {Family: FamilyHybridSig, Parameter: "p256mldsa44"},
 	"p384_mldsa65": {Family: FamilyHybridSig, Parameter: "p384mldsa65"},
 	"p521_mldsa87": {Family: FamilyHybridSig, Parameter: "p521mldsa87"},

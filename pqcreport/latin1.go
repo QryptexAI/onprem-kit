@@ -49,8 +49,9 @@ func latin1(s string) string {
 		case r < 0x80:
 			b.WriteRune(r)
 		case r <= 0xff:
-			// cp1252 covers accented Latin; fpdf writes the byte directly.
-			b.WriteRune(r)
+			// cp1252 covers accented Latin; fpdf writes the byte directly. ONE
+			// byte: WriteRune wrote the two-byte UTF-8 form, so "§" printed as "Â§".
+			b.WriteByte(byte(r))
 		default:
 			b.WriteByte('?')
 		}

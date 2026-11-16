@@ -44,7 +44,28 @@ var oidNames = map[string]string{
 	"2.16.840.1.101.3.4.3.29": "SLH-DSA-SHAKE-192f",
 	"2.16.840.1.101.3.4.3.30": "SLH-DSA-SHAKE-256s",
 	"2.16.840.1.101.3.4.3.31": "SLH-DSA-SHAKE-256f",
-	// oqs-provider's experimental arc, as PKI's composites carry it.
+	// Composite ML-DSA, RFC 10073 (November 2026), all eighteen. PKI issues the
+	// three ECDSA ones (.40, .46, .54) from v0.10.14; the rest are named so a
+	// certificate from another CA is recognised rather than reported by OID.
+	"1.3.6.1.5.5.7.6.37": "MLDSA44-RSA2048-PSS-SHA256",
+	"1.3.6.1.5.5.7.6.38": "MLDSA44-RSA2048-PKCS15-SHA256",
+	"1.3.6.1.5.5.7.6.39": "MLDSA44-Ed25519-SHA512",
+	"1.3.6.1.5.5.7.6.40": "MLDSA44-ECDSA-P256-SHA256",
+	"1.3.6.1.5.5.7.6.41": "MLDSA65-RSA3072-PSS-SHA512",
+	"1.3.6.1.5.5.7.6.42": "MLDSA65-RSA3072-PKCS15-SHA512",
+	"1.3.6.1.5.5.7.6.43": "MLDSA65-RSA4096-PSS-SHA512",
+	"1.3.6.1.5.5.7.6.44": "MLDSA65-RSA4096-PKCS15-SHA512",
+	"1.3.6.1.5.5.7.6.45": "MLDSA65-ECDSA-P256-SHA512",
+	"1.3.6.1.5.5.7.6.46": "MLDSA65-ECDSA-P384-SHA512",
+	"1.3.6.1.5.5.7.6.47": "MLDSA65-ECDSA-brainpoolP256r1-SHA512",
+	"1.3.6.1.5.5.7.6.48": "MLDSA65-Ed25519-SHA512",
+	"1.3.6.1.5.5.7.6.49": "MLDSA87-ECDSA-P384-SHA512",
+	"1.3.6.1.5.5.7.6.50": "MLDSA87-ECDSA-brainpoolP384r1-SHA512",
+	"1.3.6.1.5.5.7.6.51": "MLDSA87-Ed448-SHAKE256",
+	"1.3.6.1.5.5.7.6.52": "MLDSA87-RSA3072-PSS-SHA512",
+	"1.3.6.1.5.5.7.6.53": "MLDSA87-RSA4096-PSS-SHA512",
+	"1.3.6.1.5.5.7.6.54": "MLDSA87-ECDSA-P521-SHA512",
+	// oqs-provider's experimental arc: PKI's composites before RFC 10073.
 	"1.3.9999.7.5": "p256_mldsa44",
 	"1.3.9999.7.7": "p384_mldsa65",
 	"1.3.9999.7.8": "p521_mldsa87",
