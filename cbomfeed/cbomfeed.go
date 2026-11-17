@@ -17,6 +17,13 @@
 // token. Redeem exchanges it once for a long-lived credential that names this source
 // and only this source. Push sends a CycloneDX 1.6 document with that credential;
 // CAMP records it, or records why it refused it, against the source.
+//
+// # Re-issue offer
+//
+// PKI's pushes also carry where and how CAMP can ask PKI to re-issue a
+// certificate it found: PKI's address and a credential that names the
+// organisation in PKI. Sent with every push, so a re-issued credential reaches
+// CAMP on the next one; a CAMP that predates it ignores the two headers.
 package cbomfeed
 
 import (
@@ -57,6 +64,19 @@ func (e *Error) Error() string {
 func Unauthorised(err error) bool {
 	var e *Error
 	return errors.As(err, &e) && e.Status == http.StatusUnauthorized
+}
+
+// The headers that carry a re-issue offer on a push.
+const (
+	HeaderReissueURL        = "X-Qryptex-Reissue-Url"
+	HeaderReissueCredential = "X-Qryptex-Reissue-Credential"
+)
+
+// ReissueOffer is PKI telling CAMP where to file re-issue requests: PKI's
+// address (https) and the credential to file them with.
+type ReissueOffer struct {
+	URL        string
+	Credential string
 }
 
 // Client talks to one CAMP.
@@ -114,7 +134,7 @@ func (c *Client) Redeem(ctx context.Context, token string) (credential, feedID s
 		Credential string `json:"credential"`
 		FeedID     string `json:"feedId"`
 	}
-	if err := c.do(ctx, "/api/v1/cbom/feeds/enroll", "", "application/json", body, &out); err != nil {
+	if err := c.do(ctx, "/api/v1/cbom/feeds/enroll", "", "application/json", body, &out, nil); err != nil {
 		return "", "", err
 	}
 	if out.Credential == "" {
@@ -126,13 +146,25 @@ func (c *Client) Redeem(ctx context.Context, token string) (credential, feedID s
 // Push sends one CycloneDX document. A refusal comes back as *Error at once; a
 // network failure or a CAMP that is restarting is tried three times in all.
 func (c *Client) Push(ctx context.Context, credential string, doc []byte) error {
+	return c.PushWithOffer(ctx, credential, doc, nil)
+}
+
+// PushWithOffer is Push carrying a re-issue offer (PKI only). An offer whose URL
+// is not https is not sent: the credential never travels unencrypted.
+func (c *Client) PushWithOffer(ctx context.Context, credential string, doc []byte, offer *ReissueOffer) error {
+	var extra http.Header
+	if offer != nil && offer.Credential != "" && strings.HasPrefix(offer.URL, "https://") {
+		extra = http.Header{}
+		extra.Set(HeaderReissueURL, strings.TrimRight(offer.URL, "/"))
+		extra.Set(HeaderReissueCredential, offer.Credential)
+	}
 	if len(doc) > MaxDocumentBytes {
 		return &Error{Status: http.StatusRequestEntityTooLarge, Code: "DOCUMENT_REFUSED",
 			Message: fmt.Sprintf("the document is %d MB, over CAMP's 25 MB limit", len(doc)>>20)}
 	}
 	var last error
 	for attempt := 1; attempt <= 3; attempt++ {
-		last = c.do(ctx, "/api/v1/cbom/feeds/push", credential, "application/vnd.cyclonedx+json", doc, nil)
+		last = c.do(ctx, "/api/v1/cbom/feeds/push", credential, "application/vnd.cyclonedx+json", doc, nil, extra)
 		var refused *Error
 		if last == nil || (errors.As(last, &refused) && refused.Status < 500) {
 			return last
@@ -148,10 +180,13 @@ func (c *Client) Push(ctx context.Context, credential string, doc []byte) error 
 	return last
 }
 
-func (c *Client) do(ctx context.Context, path, credential, contentType string, body []byte, out any) error {
+func (c *Client) do(ctx context.Context, path, credential, contentType string, body []byte, out any, extra http.Header) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, bytes.NewReader(body))
 	if err != nil {
 		return err
+	}
+	for k, v := range extra {
+		req.Header[k] = v
 	}
 	req.Header.Set("Content-Type", contentType)
 	if credential != "" {

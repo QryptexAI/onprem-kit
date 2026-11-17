@@ -126,3 +126,27 @@ func TestUntrustedCertificateIsRefused(t *testing.T) {
 		t.Error("a CA that is not PEM was accepted")
 	}
 }
+
+func TestPushCarriesTheReissueOffer(t *testing.T) {
+	var url, cred string
+	var seen atomic.Int32
+	c, _ := camp(t, func(w http.ResponseWriter, r *http.Request) {
+		seen.Add(1)
+		url, cred = r.Header.Get(HeaderReissueURL), r.Header.Get(HeaderReissueCredential)
+	})
+	if err := c.PushWithOffer(context.Background(), "cred", []byte("{}"), &ReissueOffer{URL: "https://pki.example.com/", Credential: "qxr_1"}); err != nil {
+		t.Fatal(err)
+	}
+	if url != "https://pki.example.com" || cred != "qxr_1" {
+		t.Fatalf("offer: %q %q", url, cred)
+	}
+	// Never over plain http, and a plain Push sends none.
+	_ = c.PushWithOffer(context.Background(), "cred", []byte("{}"), &ReissueOffer{URL: "http://pki.example.com", Credential: "qxr_1"})
+	if cred != "" {
+		t.Fatal("the credential was offered for a plain-http address")
+	}
+	_ = c.Push(context.Background(), "cred", []byte("{}"))
+	if cred != "" || seen.Load() != 3 {
+		t.Fatalf("plain push carried %q (%d calls)", cred, seen.Load())
+	}
+}
