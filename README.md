@@ -41,6 +41,10 @@ arrangement already used for PKI's `pkg/auth` and `pkg/nodelock`.
   identity does not.
 - **`cbomfeed`** — the client PKI and QryptoScan use to enrol with CAMP and push
   their CBOM to it.
+- **`qxbundle`** — air-gapped transfer to a central CAMP: a `.qxbundle` file signed
+  by the isolated install (ML-DSA-65) and encrypted to the central CAMP (HPKE,
+  ML-KEM-768 + X25519), with the enrolment files both ways and replay refusal.
+  Needs Go 1.27 (`crypto/mldsa`, `crypto/hpke`).
 - **`pqcreport`** — the CBOM PDF report all three products render.
 - **`cdxsign`** — signs and verifies a CycloneDX document with an enveloped JSF
   signature over its RFC 8785 canonical form, carrying the signer's certificate

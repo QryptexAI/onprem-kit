@@ -1,6 +1,6 @@
 module github.com/QryptexAI/onprem-kit
 
-go 1.25.0
+go 1.27.3
 
 require (
 	github.com/go-pdf/fpdf v0.9.0
